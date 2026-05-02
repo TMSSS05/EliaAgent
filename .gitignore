@@ -1,0 +1,16 @@
+.agent_payloads
+.playwright-mcp
+node_modules
+*.tsv
+*.vtt
+*.gif
+
+setup/backups
+ui_electron/.jarvis-position.json
+
+# Audio generation outputs
+*.wav
+chunk_*/
+temp_output/
+concat_list.txt
+audio_*.wav

@@ -1,0 +1,21 @@
+{
+  // Scope projet — uniquement pour ce projet (EliaAI)
+  "memory": {
+    "defaultScope": "project"
+  },
+
+  // Maxmemories pour le projet
+  "maxMemories": 15,
+
+  // Auto-capture en français
+  "autoCaptureEnabled": true,
+  "autoCaptureLanguage": "fr",
+
+  // Injection au demarrage
+  "chatMessage": {
+    "enabled": true,
+    "maxMemories": 8,
+    "excludeCurrentSession": true,
+    "injectOn": "first"
+  }
+}
