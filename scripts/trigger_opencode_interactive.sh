@@ -15,7 +15,7 @@ export PATH="$HOME/.opencode/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:
 # Configuration - dynamic path detection
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 AGENT_DIR="$(dirname "$SCRIPT_DIR")"
-OPENCODE_BIN="/Users/vakandi/.opencode/bin/opencode"
+OPENCODE_BIN="$(which opencode 2>/dev/null || echo 'opencode')"
 LOG_DIR="${AGENT_DIR}/logs"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
@@ -62,34 +62,26 @@ start_mcp_servers() {
             echo "[MCP] Starting $server..."
             
             # Extract command and args from JSON (simplified parsing)
-            case $server in
-                telegram)
-                    cd /Users/vakandi/Documents/mcps_server/telegram-mcp-server 2>/dev/null && (
-                    TELEGRAM_API_ID=${TELEGRAM_API_ID:-}
-                    TELEGRAM_API_HASH=${TELEGRAM_API_HASH:-}
-                    TG_BOT_TOKEN=${TG_BOT_TOKEN:-}
-                    TG_CHAT_ID=${TG_CHAT_ID:-}
-                    TG_USER_ID=${TG_USER_ID:-}
-                    if [[ -z $TG_BOT_TOKEN ]]; then
-                        echo '[MCP] WARNING: TG_BOT_TOKEN not set - skipping Telegram MCP'
-                    else
-                        export TELEGRAM_API_ID TELEGRAM_API_HASH TG_BOT_TOKEN TG_CHAT_ID TG_USER_ID
-                        node dist/index.js >> $LOG_DIR/mcp_telegram.log 2>&1 &
-                    fi
-                    )
+            case "$server" in
+                "telegram")
+                    cd /Users/vakandi/Documents/mcps_server/telegram-mcp-server 2>/dev/null && \
+                    TELEGRAM_API_ID="YOUR_TELEGRAM_API_ID" \
+                    TELEGRAM_API_HASH="YOUR_TELEGRAM_API_HASH" \
+                    TG_BOT_TOKEN="YOUR_TELEGRAM_BOT_TOKEN" \
+                    TG_CHAT_ID="YOUR_TELEGRAM_CHAT_ID" \
+                    TG_USER_ID="YOUR_TELEGRAM_USER_ID" \
+                    DISABLE_APPROVALS_POLLING="true" \
+                    node dist/index.js >> "$LOG_DIR/mcp_telegram.log" 2>&1 &
                     ;;
-                mcp-atlassian)
-                    cd /Users/vakandi && (
-                    JIRA_URL=${JIRA_URL:-}
-                    JIRA_USERNAME=${JIRA_USERNAME:-}
-                    JIRA_API_TOKEN=${JIRA_API_TOKEN:-}
-                    if [[ -z $JIRA_API_TOKEN ]]; then
-                        echo '[MCP] WARNING: JIRA_API_TOKEN not set - skipping Atlassian MCP'
-                    else
-                        export JIRA_URL JIRA_USERNAME JIRA_API_TOKEN CONFLUENCE_URL CONFLUENCE_USERNAME CONFLUENCE_API_TOKEN
-                        /Users/vakandi/.local/bin/uvx mcp-atlassian >> $LOG_DIR/mcp_atlassian.log 2>&1 &
-                    fi
-                    )
+                "mcp-atlassian")
+                    cd /Users/vakandi && \
+                    JIRA_URL="https://YOUR_ATLASSIAN_DOMAIN.atlassian.net" \
+                    JIRA_USERNAME="YOUR_EMAIL" \
+                    JIRA_API_TOKEN="YOUR_JIRA_API_TOKEN" \
+                    CONFLUENCE_URL="https://YOUR_ATLASSIAN_DOMAIN.atlassian.net/wiki" \
+                    CONFLUENCE_USERNAME="YOUR_EMAIL" \
+                    CONFLUENCE_API_TOKEN="YOUR_CONFLUENCE_API_TOKEN" \
+                    /Users/vakandi/.local/bin/uvx mcp-atlassian >> "$LOG_DIR/mcp_atlassian.log" 2>&1 &
                     ;;
                 "bene2luxe_mcp")
                     cd /Users/vakandi/Documents/mcps_server/bene2luxe_mcp 2>/dev/null && \
@@ -136,7 +128,35 @@ start_mcp_servers() {
 # END MCP SERVERS STARTUP
 # ============================================================
 
-# ULW is now the DEFAULT mode. Ralph mode uses .ralph_mode marker file.
+# ============================================================
+# CODEMEM VIEWER STARTUP - CRITICAL FOR CODEMEM PLUGIN
+# The codemem plugin needs the viewer running on port 38888
+# ============================================================
+CODEMEM_PORT="${CODEMEM_VIEWER_PORT:-38888}"
+
+start_codemem_viewer() {
+    if lsof -i :$CODEMEM_PORT 2>/dev/null | grep -q LISTEN; then
+        echo "[CODEMEM] Viewer already running on port $CODEMEM_PORT"
+        return 0
+    fi
+    
+    echo "[CODEMEM] Starting codemem viewer from integrations..."
+    nohup /Users/vakandi/.nvm/versions/node/v20.20.2/bin/node /Users/vakandi/EliaAI/integrations/codemem/packages/cli/dist/index.js serve start --foreground --host 127.0.0.1 --port $CODEMEM_PORT --db-path ~/.codemem/mem.sqlite >> "$LOG_DIR/codemem_viewer.log" 2>&1 &
+    
+    sleep 3
+    
+    if lsof -i :$CODEMEM_PORT 2>/dev/null | grep -q LISTEN; then
+        echo "[CODEMEM] Viewer started successfully (port $CODEMEM_PORT)"
+        return 0
+    else
+        echo "[CODEMEM] WARNING: Viewer may not have started. Check $LOG_DIR/codemem_viewer.log"
+        return 1
+    fi
+}
+
+start_codemem_viewer
+
+# Check OMO and ULW/Ralph toggle states
 OMO_DISABLED_FILE="${AGENT_DIR}/.omo_disabled"
 RALPH_MODE_FILE="${AGENT_DIR}/.ralph_mode"
 
@@ -304,15 +324,36 @@ else
     MODEL_TO_USE="opencode/big-pickle"
 fi
 
-# Load ALL OpenCode plugins (Ralph loop + rate-limit fallback)
-export OPENCODE_PLUGIN_PATH="/Users/vakandi/.config/opencode/plugin"
+# Load ALL OpenCode plugins (Ralph loop + rate-limit fallback + codemem memory)
+# Ralph must be loaded for the loop to run; rate-limit-fallback for API resilience
+# CRITICAL: Include codemem plugin path for memory system to work
+export OPENCODE_PLUGIN_PATH="/Users/vakandi/.config/opencode/plugin:/Users/vakandi/EliaAI/integrations/codemem/packages/opencode-plugin"
 
 # Check USE_PROXY flag - also check .proxy_enabled file as backup
 if [[ "${USE_PROXY:-0}" == "1" ]]; then
-    echo "Proxy mode enabled (proxychains4)"
+    echo "Proxy mode enabled (HTTP_PROXY env)"
 elif [[ -f "${AGENT_DIR}/.proxy_enabled" ]]; then
     export USE_PROXY=1
-    echo "Proxy mode enabled (via .proxy_enabled file, proxychains4)"
+    echo "Proxy mode enabled (via .proxy_enabled file, HTTP_PROXY env)"
+fi
+
+# Load proxy from proxychains.conf for HTTP_PROXY env vars (local to commands only)
+if [[ "${USE_PROXY:-0}" == "1" ]]; then
+    PROXY_CONF="$HOME/.proxychains.conf"
+    if [[ -f "$PROXY_CONF" ]]; then
+        PROXY_LINE=$(grep -v "^#" "$PROXY_CONF" | grep "http " | head -1)
+        if [[ -n "$PROXY_LINE" ]]; then
+            _type=$(echo "$PROXY_LINE" | awk '{print $1}')
+            ip=$(echo "$PROXY_LINE" | awk '{print $2}')
+            port=$(echo "$PROXY_LINE" | awk '{print $3}')
+            user=$(echo "$PROXY_LINE" | awk '{print $4}')
+            pass=$(echo "$PROXY_LINE" | awk '{print $5}')
+            # Store for use with env command (not exported globally)
+            PROXY_HTTP="http://${user}:${pass}@${ip}:${port}"
+            PROXY_HTTPS="http://${user}:${pass}@${ip}:${port}"
+            echo "Loaded proxy: $ip:$port (HTTP_PROXY env vars ready)"
+        fi
+    fi
 fi
 
 
@@ -393,14 +434,12 @@ LOGFILE="${LOG_DIR}/opencode_interactive_${TIMESTAMP}.log"
 # Run OpenCode with the appropriate loop command
 # ULW is DEFAULT - unlimited iterations
 # Ralph mode - 50 iterations max
-LOGFILE="${LOG_DIR}/opencode_interactive_${TIMESTAMP}.log"
-
-echo "Starting EliaAI Agent with NVIDIA NIM..."
-echo "Loop mode: $([[ "$RALPH_MODE" == "true" ]] && echo "Ralph (50 iters)" || echo "ULW (unlimited)")"
-echo "Timestamp: ${TIMESTAMP}"
-echo "Next run in: ${NEXT_RUN_HOURS} hour(s)"
-echo "Extra context: ${EXTRA_CONTEXT:-none}"
-echo ""
+echo "Starting EliaAI Agent with NVIDIA NIM..." | tee -a "$LOGFILE"
+echo "Loop mode: $([[ "$RALPH_MODE" == "true" ]] && echo "Ralph (50 iters)" || echo "ULW (unlimited)")" | tee -a "$LOGFILE"
+echo "Timestamp: ${TIMESTAMP}" | tee -a "$LOGFILE"
+echo "Next run in: ${NEXT_RUN_HOURS} hour(s)" | tee -a "$LOGFILE"
+echo "Extra context: ${EXTRA_CONTEXT:-none}" | tee -a "$LOGFILE"
+echo "" | tee -a "$LOGFILE"
 
 if [[ "$RALPH_MODE" == "true" ]]; then
     LOOP_PROMPT="You are EliaAI, an autonomous AI assistant for Wael Bousfira.
@@ -462,8 +501,8 @@ EXTRA CONTEXT: ${EXTRA_CONTEXT:-none}
 Output <promise>DONE</promise> when you have genuinely finished all tasks and verified your work."
 
     LOOP_COMMAND="ulw-loop"
-    LOOP_ARGS="--completion-promise DONE --max-iterations 0"
-    echo "Using ULW-LOOP command (unlimited iterations)"
+    LOOP_ARGS="--completion-promise DONE --max-iterations 30"
+    echo "Using ULW-LOOP command (max 30 iterations)"
 fi
 
 FULL_LOOP_MESSAGE=""
@@ -477,18 +516,27 @@ ${LOOP_ARGS}"
     fi
 fi
 
+echo "DEBUG: FULL_LOOP_MESSAGE length = ${#FULL_LOOP_MESSAGE}"
+echo "DEBUG: FIRST 200 chars = ${FULL_LOOP_MESSAGE:0:200}"
+
 OPENCODE_PORT=4096
 
 if nc -z 127.0.0.1 $OPENCODE_PORT 2>/dev/null; then
     if [[ "${USE_PROXY:-0}" == "1" ]]; then
         SERVER_PID=$(lsof -ti :$OPENCODE_PORT 2>/dev/null | head -1)
         if [[ -n "$SERVER_PID" ]]; then
+            echo "[SERVER] USE_PROXY=1 - restarting server with HTTP_PROXY..."
             kill -9 $SERVER_PID 2>/dev/null || true
             sleep 2
         fi
-        echo "[SERVER] Starting new server with proxychains4..."
-        nohup proxychains4 -f ~/.proxychains.conf opencode serve --port $OPENCODE_PORT \
-            > /tmp/opencode_server_${OPENCODE_PORT}.log 2>&1 &
+        echo "[SERVER] Starting new server with HTTP_PROXY..."
+        if [[ -n "${PROXY_HTTP:-}" ]]; then
+            nohup env HTTP_PROXY="$PROXY_HTTP" HTTPS_PROXY="$PROXY_HTTPS" http_proxy="$PROXY_HTTP" https_proxy="$PROXY_HTTPS" "$OPENCODE_BIN" serve --port $OPENCODE_PORT \
+                > /tmp/opencode_server_${OPENCODE_PORT}.log 2>&1 &
+        else
+            nohup "$OPENCODE_BIN" serve --port $OPENCODE_PORT \
+                > /tmp/opencode_server_${OPENCODE_PORT}.log 2>&1 &
+        fi
         SERVER_PID=$!
         sleep 3
         if nc -z 127.0.0.1 $OPENCODE_PORT 2>/dev/null; then
@@ -501,26 +549,32 @@ if nc -z 127.0.0.1 $OPENCODE_PORT 2>/dev/null; then
     fi
 else
     echo "No existing server - will start new one on port $OPENCODE_PORT"
-    nohup opencode serve --port $OPENCODE_PORT \
-        > /tmp/opencode_server_${OPENCODE_PORT}.log 2>&1 &
+    if [[ -n "${PROXY_HTTP:-}" ]]; then
+        nohup env HTTP_PROXY="$PROXY_HTTP" HTTPS_PROXY="$PROXY_HTTPS" http_proxy="$PROXY_HTTP" https_proxy="$PROXY_HTTPS" "$OPENCODE_BIN" serve --port $OPENCODE_PORT \
+            > /tmp/opencode_server_${OPENCODE_PORT}.log 2>&1 &
+    else
+        nohup "$OPENCODE_BIN" serve --port $OPENCODE_PORT \
+            > /tmp/opencode_server_${OPENCODE_PORT}.log 2>&1 &
+    fi
     sleep 3
 fi
 
 
 echo ""
-echo "========================================"
-echo "COMMAND TO EXECUTE:"
-echo "========================================"
+echo "========================================" | tee -a "$LOGFILE"
+echo "COMMAND TO EXECUTE:" | tee -a "$LOGFILE"
+echo "========================================" | tee -a "$LOGFILE"
+echo "" | tee -a "$LOGFILE"
 
 if [[ "${USE_PROXY:-0}" == "1" ]]; then
-    echo "Running with proxy (server started with proxychains4, attaching to it)..."
-    echo "EXEC: oh-my-opencode run --attach http://127.0.0.1:$OPENCODE_PORT -a elia \"/ulw-loop ...\""
-    stdbuf -oL -eL oh-my-opencode run --attach "http://127.0.0.1:$OPENCODE_PORT" -a elia "/ulw-loop ${FULL_LOOP_MESSAGE}" 2>&1 | tee -a "$LOGFILE"
+    echo "Running with proxy (server started with proxychains4, attaching to it)..." | tee -a "$LOGFILE"
+    echo "EXEC: oh-my-opencode run --attach http://127.0.0.1:$OPENCODE_PORT -a elia \"/${LOOP_COMMAND} ...\"" | tee -a "$LOGFILE"
+    stdbuf -oL -eL oh-my-opencode run --attach "http://127.0.0.1:$OPENCODE_PORT" -a elia "/${LOOP_COMMAND} ${FULL_LOOP_MESSAGE}" 2>&1 | tee -a "$LOGFILE"
     EXIT_CODE=$?
 elif [[ "$OMO_ENABLED" == "true" ]]; then
-    echo "Running with oh-my-opencode (OMO enabled)..."
-    echo "EXEC: oh-my-opencode run -a elia \"/ulw-loop \$FULL_LOOP_MESSAGE\""
-    stdbuf -oL -eL oh-my-opencode run -a elia "/ulw-loop ${FULL_LOOP_MESSAGE}" 2>&1 | tee -a "$LOGFILE"
+    echo "Running with oh-my-opencode (OMO enabled)..." | tee -a "$LOGFILE"
+    echo "EXEC: oh-my-opencode run -a elia \"/${LOOP_COMMAND} \$FULL_LOOP_MESSAGE\"" | tee -a "$LOGFILE"
+    stdbuf -oL -eL oh-my-opencode run -a elia "/${LOOP_COMMAND} ${FULL_LOOP_MESSAGE}" 2>&1 | tee -a "$LOGFILE"
     EXIT_CODE=$?
 else
     echo "Running with direct opencode (OMO disabled)..." | tee -a "$LOGFILE"

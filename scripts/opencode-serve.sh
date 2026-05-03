@@ -82,12 +82,14 @@ setup_proxy() {
             local user=$(echo "$PROXY_LINE" | awk '{print $4}')
             local pass=$(echo "$PROXY_LINE" | awk '{print $5}')
             
-            log "[PROXY] Proxy is handled by proxychains4 at library level (no env vars needed)"
+            PROXY_HTTP="http://${user}:${pass}@${ip}:${port_proxy}"
+            PROXY_HTTPS="http://${user}:${pass}@${ip}:${port_proxy}"
+            log "[PROXY] Loaded proxy: $ip:$port_proxy (HTTP_PROXY env vars ready)"
         else
             log "[PROXY] No valid proxy line found in $PROXY_CONF"
         fi
     else
-        log "[PROXY] Using proxychains4 (no env vars needed)"
+        log "[PROXY] No proxy enabled"
     fi
 }
 
@@ -96,7 +98,11 @@ start_server_process() {
     
     log "[SERVER] Starting opencode serve on port $PORT..."
     
-    opencode serve --port "$PORT" >> "$LOG_FILE" 2>&1 &
+    if [[ -n "${PROXY_HTTP:-}" ]]; then
+        env HTTP_PROXY="$PROXY_HTTP" HTTPS_PROXY="$PROXY_HTTPS" http_proxy="$PROXY_HTTP" https_proxy="$PROXY_HTTPS" opencode serve --port "$PORT" >> "$LOG_FILE" 2>&1 &
+    else
+        opencode serve --port "$PORT" >> "$LOG_FILE" 2>&1 &
+    fi
     echo $! > "$PID_FILE"
     
     log "[SERVER] Started with PID $(cat $PID_FILE)"

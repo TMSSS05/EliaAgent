@@ -73,10 +73,29 @@ export OPENCODE_PLUGIN_PATH="/Users/vakandi/.config/opencode/plugin:/Users/vakan
 
 # Check USE_PROXY flag - also check .proxy_enabled file as backup
 if [[ "${USE_PROXY:-0}" == "1" ]]; then
-    echo "Proxy mode enabled (proxychains4)"
+    echo "Proxy mode enabled (HTTP_PROXY env)"
 elif [[ -f "${AGENT_DIR}/.proxy_enabled" ]]; then
     USE_PROXY=1
-    echo "Proxy mode enabled (via .proxy_enabled file, proxychains4)"
+    echo "Proxy mode enabled (via .proxy_enabled file, HTTP_PROXY env)"
+fi
+
+# Load proxy from proxychains.conf for HTTP_PROXY env vars (local to commands only)
+if [[ "${USE_PROXY:-0}" == "1" ]]; then
+    PROXY_CONF="$HOME/.proxychains.conf"
+    if [[ -f "$PROXY_CONF" ]]; then
+        PROXY_LINE=$(grep -v "^#" "$PROXY_CONF" | grep "http " | head -1)
+        if [[ -n "$PROXY_LINE" ]]; then
+            _type=$(echo "$PROXY_LINE" | awk '{print $1}')
+            ip=$(echo "$PROXY_LINE" | awk '{print $2}')
+            port=$(echo "$PROXY_LINE" | awk '{print $3}')
+            user=$(echo "$PROXY_LINE" | awk '{print $4}')
+            pass=$(echo "$PROXY_LINE" | awk '{print $5}')
+            # Store for use with env command (not exported globally)
+            PROXY_HTTP="http://${user}:${pass}@${ip}:${port}"
+            PROXY_HTTPS="http://${user}:${pass}@${ip}:${port}"
+            echo "Loaded proxy: $ip:$port (HTTP_PROXY env vars ready)"
+        fi
+    fi
 fi
 
 # Telegram session inbox (same as trigger_opencode_interactive): merge and clear
@@ -228,15 +247,20 @@ ${LOOP_ARGS}"
 OPENCODE_PORT=4096
 if [[ "${USE_PROXY:-0}" == "1" ]]; then
     if nc -z 127.0.0.1 $OPENCODE_PORT 2>/dev/null; then
-        echo "[SERVER] USE_PROXY=1 - killing existing server to restart with proxychains4..."
+        echo "[SERVER] USE_PROXY=1 - killing existing server to restart with HTTP_PROXY..."
         SERVER_PID=$(lsof -ti :$OPENCODE_PORT 2>/dev/null | head -1)
         if [[ -n "$SERVER_PID" ]]; then
             kill -9 $SERVER_PID 2>/dev/null || true
             sleep 2
         fi
-        echo "[SERVER] Starting new server with proxychains4..."
-        nohup proxychains4 -f ~/.proxychains.conf opencode serve --port $OPENCODE_PORT \
-            > /tmp/opencode_server_${OPENCODE_PORT}.log 2>&1 &
+        echo "[SERVER] Starting new server with HTTP_PROXY..."
+        if [[ -n "${PROXY_HTTP:-}" ]]; then
+            nohup env HTTP_PROXY="$PROXY_HTTP" HTTPS_PROXY="$PROXY_HTTPS" http_proxy="$PROXY_HTTP" https_proxy="$PROXY_HTTPS" opencode serve --port $OPENCODE_PORT \
+                > /tmp/opencode_server_${OPENCODE_PORT}.log 2>&1 &
+        else
+            nohup opencode serve --port $OPENCODE_PORT \
+                > /tmp/opencode_server_${OPENCODE_PORT}.log 2>&1 &
+        fi
         SERVER_PID=$!
         sleep 3
         if nc -z 127.0.0.1 $OPENCODE_PORT 2>/dev/null; then
@@ -252,7 +276,7 @@ if [[ "$OMO_ENABLED" == "true" ]]; then
     PROMPT_FILE=$(mktemp /tmp/elia_morning_prompt_$(date +%s)_XXXXXX.txt)
     echo "/${LOOP_COMMAND} ${FULL_PROMPT}" > "$PROMPT_FILE"
     if [[ "${USE_PROXY:-0}" == "1" ]]; then
-        echo "Running with proxy (server started with proxychains4, attaching to it)..."
+        echo "Running with proxy (server started with HTTP_PROXY, attaching to it)..."
         echo "Command: oh-my-opencode run --attach http://127.0.0.1:$OPENCODE_PORT -a elia \"@prompt.txt\""
         oh-my-opencode run --attach "http://127.0.0.1:$OPENCODE_PORT" -a elia "@${PROMPT_FILE}" 2>&1 | tee "${LOG_DIR}/opencode_morning_run_${TIMESTAMP}.log"
     else

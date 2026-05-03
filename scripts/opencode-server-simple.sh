@@ -7,11 +7,26 @@ export PATH="$HOME/.opencode/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:
 
 cd "$AGENT_DIR"
 
+PROXY_HTTP=""
+PROXY_HTTPS=""
+
 if [[ -f "$AGENT_DIR/.proxy_enabled" ]] && [[ -f "$PROXY_CONF" ]]; then
-    # Proxy is handled by proxychains4 at library level (no env vars needed)
-    log "[PROXY] Proxy mode enabled (proxychains4)"
+    PROXY_LINE=$(grep -v "^#" "$PROXY_CONF" | grep "http " | head -1)
+    if [[ -n "$PROXY_LINE" ]]; then
+        ip=$(echo "$PROXY_LINE" | awk '{print $2}')
+        port_proxy=$(echo "$PROXY_LINE" | awk '{print $3}')
+        user=$(echo "$PROXY_LINE" | awk '{print $4}')
+        pass=$(echo "$PROXY_LINE" | awk '{print $5}')
+        PROXY_HTTP="http://${user}:${pass}@${ip}:${port_proxy}"
+        PROXY_HTTPS="http://${user}:${pass}@${ip}:${port_proxy}"
+        echo "[PROXY] Loaded proxy: $ip:$port_proxy (HTTP_PROXY env vars ready)"
+    fi
 fi
 
 echo "[SERVER] Starting on port $PORT..."
-/Users/vakandi/.opencode/bin/opencode serve --port $PORT &
+if [[ -n "$PROXY_HTTP" ]]; then
+    env HTTP_PROXY="$PROXY_HTTP" HTTPS_PROXY="$PROXY_HTTPS" http_proxy="$PROXY_HTTP" https_proxy="$PROXY_HTTPS" /Users/vakandi/.opencode/bin/opencode serve --port $PORT &
+else
+    /Users/vakandi/.opencode/bin/opencode serve --port $PORT &
+fi
 echo "Server started"

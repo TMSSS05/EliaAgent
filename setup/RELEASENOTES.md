@@ -1,4 +1,52 @@
-# EliaAI Release Notes - April 2026
+# EliaAI Release Notes - May 2026
+
+## Version: v1.0.2 (May 3, 2026)
+
+### Critical Proxy System Update
+
+**Issue (May 2, 2026)**: `proxychains4` stopped intercepting OpenCode network requests properly due to macOS SIP (System Integrity Protection) limitations where signed binaries cannot have libraries injected.
+
+**Solution**: Migrated from `proxychains4` library injection to **HTTP_PROXY environment variables** applied locally to each command using `env`.
+
+### New Features
+
+- **HTTP_PROXY Wrapper** (`setup/opencode-proxy.sh`) - Robust proxy wrapper that applies HTTP_PROXY locally without polluting the terminal
+- **Updated All Scripts** - All opencode-related scripts now use HTTP_PROXY instead of proxychains4:
+  - `scripts/trigger_opencode_interactive.sh`
+  - `scripts/trigger_morning.sh`
+  - `scripts/opencode-serve.sh`
+  - `scripts/opencode-serve-fixed.sh`
+  - `scripts/opencode-server-launchd.sh`
+  - `scripts/opencode-server-simple.sh`
+  - `scripts/run-tmux.sh`
+  - `scripts/start_elias_discord.sh`
+
+### Benefits
+
+- ✅ **Works reliably** - No SIP limitations
+- ✅ **Doesn't pollute the terminal** - Proxy vars are applied only to the specific command using `env`
+- ✅ **Compatible with all scripts** - Works with opencode, oh-my-opencode, Discord bot, etc.
+- ✅ **Easy to debug** - Can verify proxy by checking the command's environment
+
+### Usage
+
+```bash
+# Enable proxy
+touch ~/EliaAI/.proxy_enabled
+
+# Use wrapper
+~/EliaAI/setup/opencode-proxy.sh -s <session_id>
+~/EliaAI/setup/opencode-proxy.sh run --agent elia "task"
+
+# Or via elia alias
+alias elia='~/EliaAI/setup/opencode-proxy.sh'
+```
+
+### Documentation Updated
+
+- `setup/README.md` - Proxy Switcher section completely rewritten with new HTTP_PROXY approach
+
+---
 
 ## Version: Public Release v1.0.1 (April 27, 2026)
 

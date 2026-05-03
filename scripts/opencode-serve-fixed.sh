@@ -34,6 +34,9 @@ kill_existing() {
 }
 
 start_server() {
+    local PROXY_HTTP=""
+    local PROXY_HTTPS=""
+    
     if [[ -f "$AGENT_DIR/.proxy_enabled" ]] && [[ -f "$PROXY_CONF" ]]; then
         PROXY_LINE=$(grep -v "^#" "$PROXY_CONF" | grep "http " | head -1)
         if [[ -n "$PROXY_LINE" ]]; then
@@ -42,12 +45,18 @@ start_server() {
             user=$(echo "$PROXY_LINE" | awk '{print $4}')
             pass=$(echo "$PROXY_LINE" | awk '{print $5}')
             
-            log "[PROXY] Proxy is handled by proxychains4 at library level (no env vars needed)"
+            PROXY_HTTP="http://${user}:${pass}@${ip}:${port_proxy}"
+            PROXY_HTTPS="http://${user}:${pass}@${ip}:${port_proxy}"
+            log "[PROXY] Loaded proxy: $ip:$port_proxy (HTTP_PROXY env vars ready)"
         fi
     fi
 
     log "[SERVER] Starting on port $PORT..."
-    exec opencode serve --port "$PORT"
+    if [[ -n "$PROXY_HTTP" ]]; then
+        exec env HTTP_PROXY="$PROXY_HTTP" HTTPS_PROXY="$PROXY_HTTPS" http_proxy="$PROXY_HTTP" https_proxy="$PROXY_HTTPS" opencode serve --port "$PORT"
+    else
+        exec opencode serve --port "$PORT"
+    fi
 }
 
 main() {
