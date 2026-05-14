@@ -69,7 +69,7 @@ export OPENCODE_MODEL="$MODEL_TO_USE"
 
 # Load ALL OpenCode plugins (Ralph loop + rate-limit fallback + codemem memory)
 # CRITICAL: Include codemem plugin path for memory system to work
-export OPENCODE_PLUGIN_PATH="/Users/vakandi/.config/opencode/plugin:/Users/vakandi/Documents/codemem/packages/opencode-plugin"
+export OPENCODE_PLUGIN_PATH="/Users/vakandi/.config/opencode/plugin:/Users/vakandi/EliaAI/integrations/codemem/packages/opencode-plugin"
 
 # Check USE_PROXY flag - also check .proxy_enabled file as backup
 if [[ "${USE_PROXY:-0}" == "1" ]]; then

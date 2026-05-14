@@ -24,6 +24,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   on: (channel, callback) => {
     ipcRenderer.on(channel, (_event, ...args) => callback(...args));
   },
+  /** Main replies to get-toggle-states with channel toggle-states */
+  onToggleStates: (callback) => {
+    ipcRenderer.on('toggle-states', (_event, states) => callback(states));
+  },
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel),
 });
 

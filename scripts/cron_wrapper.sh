@@ -5,6 +5,11 @@ set -euo pipefail
 # Get the directory where this script is located, then get parent (EliaAI root)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 AGENT_DIR="$(dirname "$SCRIPT_DIR")"
+
+if [[ -f "${AGENT_DIR}/.scheduler_disabled" ]]; then
+    echo "[$(date)] Scheduler DISABLED - exiting"
+    exit 0
+fi
 export HOME="$(eval echo ~$(whoami))"
 
 export NVM_DIR="$HOME/.nvm"
@@ -15,6 +20,12 @@ source /Users/vakandi/.zshrc 2>/dev/null || true
 
 # Mark this as a cron run (used by trigger_opencode_interactive.sh for lock mechanism)
 export ELIA_CRON=1
+
+# CRITICAL: Ensure localhost/127.0.0.1 bypasses the proxy
+# Without this, Node.js fetch() routes 127.0.0.1 through the proxy (Webshare) which returns 403.
+# The codemem plugin, MCP servers, and other local services need direct access.
+export NO_PROXY="127.0.0.1,localhost,::1"
+export no_proxy="127.0.0.1,localhost,::1"
 
 if [[ -f "${AGENT_DIR}/.proxy_enabled" ]]; then
     echo "[$(date)] Proxy enabled - refreshing proxy..."

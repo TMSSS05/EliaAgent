@@ -109,20 +109,7 @@ start_viewer() {
     
     log "Starting codemem viewer on port $PORT..."
     
-    cd /Users/vakandi/Documents/codemem
-    npx codemem serve start --foreground --host 127.0.0.1 --port "$PORT" --db-path "$DB_PATH" >> "$LOG_FILE" 2>&1 &
-    local pid=$!
-    echo $pid > "$PID_FILE"
-    
-    log "Started with PID $pid"
-    return 0
-}
-    fi
-    
-    log "Starting codemem viewer on port $PORT..."
-    
-    # Start the viewer
-    cd "$AGENT_DIR"
+    cd "$AGENT_DIR/integrations/codemem"
     npx codemem serve start --foreground --host 127.0.0.1 --port "$PORT" --db-path "$DB_PATH" >> "$LOG_FILE" 2>&1 &
     local pid=$!
     echo $pid > "$PID_FILE"

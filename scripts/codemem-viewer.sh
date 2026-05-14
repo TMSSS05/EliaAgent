@@ -21,9 +21,9 @@ preflight_check() {
     mkdir -p "$LOG_DIR" 2>/dev/null || true
     mkdir -p "$(dirname $PID_FILE)" 2>/dev/null || true
     
-    if [[ -x "/Users/vakandi/Documents/codemem/packages/cli/dist/index.js" ]]; then
+    if [[ -x "$AGENT_DIR/integrations/codemem/packages/cli/dist/index.js" ]]; then
         CODEMEM_CLI="node"
-        CODEMEM_ARGS="/Users/vakandi/Documents/codemem/packages/cli/dist/index.js"
+        CODEMEM_ARGS="$AGENT_DIR/integrations/codemem/packages/cli/dist/index.js"
     elif command -v codemem &>/dev/null; then
         CODEMEM_CLI="codemem"
         CODEMEM_ARGS=""

@@ -23,6 +23,10 @@ LOCAL_MORNING_PLIST="${AGENT_DIR}/com.elia.elia-agent-morning.plist"
 # State file for UI to read settings
 STATE_FILE="${AGENT_DIR}/.scheduler_state"
 
+# Disabled flag — when present, launchd plist will NOT be loaded
+# This is the actual enable/disable control (unlike .scheduler_state which is display-only)
+DISABLED_FLAG="${AGENT_DIR}/.scheduler_disabled"
+
 # Default settings
 DEFAULT_START_HOUR=11
 DEFAULT_END_HOUR=21
@@ -75,8 +79,10 @@ Usage: ./manage_cron.sh [command] [options]
 Commands:
   install         Install or update standard scheduler (interval-based)
   install-morning Install or update morning scheduler (MORNING_PROMPT.md)
-  uninstall       Remove all EliaAI schedulers
+  uninstall       Remove all EliaAI schedulers (DESTRUCTIVE — removes state)
   uninstall-morning Remove only morning scheduler
+  disable         Stop scheduler, unload plist, preserve settings
+  enable          Re-enable scheduler, reload plist from saved settings
   show            Show current schedulers
   status          Show scheduler status and settings
 
@@ -203,7 +209,7 @@ generate_calendar_entries() {
             ;;
     esac
     
-    echo "$entries"
+    echo -e "$entries"
 }
 
 
@@ -273,7 +279,7 @@ install_scheduler() {
     </array>
     
     <key>RunAtLoad</key>
-    <true/>
+    <false/>
     
     <key>StartCalendarInterval</key>
     <array>
@@ -288,6 +294,10 @@ ${calendar_entries}
         <string>/Users/vakandi</string>
         <key>USER</key>
         <string>vakandi</string>
+        <key>NO_PROXY</key>
+        <string>127.0.0.1,localhost,::1</string>
+        <key>no_proxy</key>
+        <string>127.0.0.1,localhost,::1</string>
     </dict>
     
     <key>WorkingDirectory</key>
@@ -305,11 +315,19 @@ ${calendar_entries}
 </plist>
 EOF
     
-    # Load the agent
-    launchctl load "$LAUNCHD_PLIST"
-
     # Backup to EliaAI folder
     cp "$LAUNCHD_PLIST" "$LOCAL_PLIST" 2>/dev/null || true
+
+    # If scheduler is disabled, write plist but don't load it
+    if [[ -f "$DISABLED_FLAG" ]]; then
+        warning "Scheduler is DISABLED (${DISABLED_FLAG} exists) — plist written but NOT loaded."
+        warning "Run './manage_cron.sh enable' to activate."
+        save_state "$interval" "$start_hour" "$end_hour" "$DEFAULT_MORNING_HOUR" "false" "false"
+        return 0
+    fi
+
+    # Load the agent
+    launchctl load "$LAUNCHD_PLIST"
 
     success "Scheduler installed (every ${interval})"
     log "Schedule: runs at :00 and :30 every hour (fixed times)"
@@ -375,6 +393,10 @@ install_morning_scheduler() {
         <string>/Users/vakandi</string>
         <key>USER</key>
         <string>vakandi</string>
+        <key>NO_PROXY</key>
+        <string>127.0.0.1,localhost,::1</string>
+        <key>no_proxy</key>
+        <string>127.0.0.1,localhost,::1</string>
     </dict>
     
     <key>WorkingDirectory</key>
@@ -408,12 +430,51 @@ EOF
     save_state "$current_interval" "$current_start" "$current_end" "$morning_hour" "${enabled:-false}" "true"
 }
 
+disable_scheduler() {
+    if [[ -f "$LAUNCHD_PLIST" ]]; then
+        launchctl unload "$LAUNCHD_PLIST" 2>/dev/null || true
+        rm -f "$LAUNCHD_PLIST"
+        log "Unloaded and removed standard launchd plist"
+    fi
+    if [[ -f "$LAUNCHD_MORNING_PLIST" ]]; then
+        launchctl unload "$LAUNCHD_MORNING_PLIST" 2>/dev/null || true
+        log "Unloaded morning launchd plist"
+    fi
+    touch "$DISABLED_FLAG"
+    log "Disabled flag created: ${DISABLED_FLAG}"
+    load_state
+    local current_interval="${interval:-${DEFAULT_INTERVAL}}"
+    local current_start="${startHour:-${DEFAULT_START_HOUR}}"
+    local current_end="${endHour:-${DEFAULT_END_HOUR}}"
+    local current_morning="${morningHour:-${DEFAULT_MORNING_HOUR}}"
+    save_state "$current_interval" "$current_start" "$current_end" "$current_morning" "false" "false"
+    success "Scheduler disabled (settings preserved for re-enable)"
+}
+
+enable_scheduler() {
+    rm -f "$DISABLED_FLAG"
+    log "Disabled flag removed"
+    load_state
+    local current_interval="${interval:-${DEFAULT_INTERVAL}}"
+    local current_start="${startHour:-${DEFAULT_START_HOUR}}"
+    local current_end="${endHour:-${DEFAULT_END_HOUR}}"
+    local current_morning="${morningHour:-${DEFAULT_MORNING_HOUR}}"
+    install_scheduler "$current_interval" "$current_start" "$current_end"
+    install_morning_scheduler "$current_morning"
+    success "Scheduler enabled (plists reloaded)"
+}
+
 show_schedulers() {
     echo "=========================================="
     echo "EliaAI Schedulers (launchd)"
     echo "=========================================="
     echo ""
     
+    if [[ -f "$DISABLED_FLAG" ]]; then
+        echo -e "${YELLOW}⏹  SCHEDULER DISABLED${NC} (remove .scheduler_disabled to re-enable)"
+        echo ""
+    fi
+
     # Check standard agent
     if [[ -f "$LAUNCHD_PLIST" ]]; then
         echo "Standard Agent: INSTALLED"
@@ -547,6 +608,16 @@ main() {
             install_morning_scheduler "$morning_hour"
             ;;
             
+        disable)
+            shift
+            disable_scheduler
+            ;;
+
+        enable)
+            shift
+            enable_scheduler
+            ;;
+
         uninstall|remove|delete|stop)
             shift
             uninstall_scheduler

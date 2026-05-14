@@ -12,51 +12,57 @@ log() {
     echo "[$timestamp] [EliaUI] $*" >&2
 }
 
-log "=== EliaUI 4-Pane Launcher ==="
+log "=== EliaUI 4-Window Tmux Launcher ==="
 
-# Vérifier que tmux est installé
+# Check tmux is installed
 if ! command -v tmux &>/dev/null; then
     log "ERROR: tmux not found in PATH"
     exit 1
 fi
 
-# Créer les dossiers de logs si nécessaire
+# Create log directory if needed
 mkdir -p "$LOG_DIR" 2>/dev/null || true
 
-# Tuer l'ancienne session si elle existe
+# Kill existing session if present
 tmux kill-session -t "$SESSION_NAME" 2>/dev/null || true
 sleep 0.5
 
 log "Creating new tmux session: $SESSION_NAME"
 
-# Créer la session avec une seule fenêtre
-tmux new-session -d -s "$SESSION_NAME" -n "EliaUI"
-
-# Split horizontal (crée pane 1 à droite)
-tmux split-window -h -t "$SESSION_NAME:0"
+# Create the session with first window (OpenCode server)
+tmux new-session -d -s "$SESSION_NAME" -n "Elia-1" 2>/dev/null || {
+    log "ERROR: Failed to create tmux session"
+    exit 1
+}
 sleep 0.3
 
-# Split vertical dans le pane gauche (crée pane 2 en bas, terminal global)
-tmux split-window -v -t "$SESSION_NAME:0.0"
+# Window 1: OpenCode server (port 4096)
+log "Setting up Window 1: OpenCode Server (port 4096)"
+tmux send-keys -t "$SESSION_NAME:0" "bash $SCRIPT_DIR/opencode-serve.sh 4096" Enter
 sleep 0.3
 
-# Redimensionner le pane du bas (terminal) pour qu'il soit beaucoup plus petit
-tmux resize-pane -t "$SESSION_NAME:0.2" -y 10
+# Window 2: CodeMem Viewer
+log "Setting up Window 2: CodeMem Viewer"
+tmux new-window -t "$SESSION_NAME" -n "Elia-2" 2>/dev/null || true
+sleep 0.3
+tmux send-keys -t "$SESSION_NAME:1" "bash $SCRIPT_DIR/codemem-viewer.sh" Enter
 sleep 0.3
 
-# Configurer Pane 0 (haut gauche) - OpenCode Server
-log "Setting up Pane 0: OpenCode Server (port 4096)"
-tmux send-keys -t "$SESSION_NAME:0.0" "bash $SCRIPT_DIR/opencode-serve.sh 4096" Enter
+# Window 3: Agents
+log "Setting up Window 3: Agents"
+tmux new-window -t "$SESSION_NAME" -n "Elia-3" 2>/dev/null || true
+sleep 0.3
+tmux send-keys -t "$SESSION_NAME:2" "bash $SCRIPT_DIR/start_agents.sh" Enter
+sleep 0.3
 
-# Configurer Pane 1 (haut droite) - Discord Integration
-log "Setting up Pane 1: Discord (start_elias_discord.sh)"
-tmux send-keys -t "$SESSION_NAME:0.1" "bash $SCRIPT_DIR/start_elias_discord.sh" Enter
+# Window 4: UI (elia-ui.sh)
+log "Setting up Window 4: UI"
+tmux new-window -t "$SESSION_NAME" -n "Elia-4" 2>/dev/null || true
+sleep 0.3
+tmux send-keys -t "$SESSION_NAME:3" "bash $SCRIPT_DIR/elia-ui.sh" Enter
+sleep 0.3
 
-# Configurer Pane 2 (bas, terminal global) - UI Electron
-log "Setting up Pane 2: UI (Electron)"
-tmux send-keys -t "$SESSION_NAME:0.2" "cd ~/EliaAI/ui_electron && npm start" Enter
-
-# Sélectionner le pane 0 et attacher
+# Select window 1 and attach
 log "Attaching to session..."
-tmux select-pane -t "$SESSION_NAME:0.0"
+tmux select-window -t "$SESSION_NAME:0"
 exec tmux attach -t "$SESSION_NAME"

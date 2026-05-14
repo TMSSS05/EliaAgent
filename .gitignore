@@ -8,6 +8,19 @@ node_modules
 setup/backups
 ui_electron/.jarvis-position.json
 
+# Environment / secrets
+.env
+.env.*
+docs/credentials.txt
+
+# Runtime state
+.scheduler_state
+.scheduler_disabled
+
+# Logs
+logs/
+*.log
+
 # Audio generation outputs
 *.wav
 chunk_*/

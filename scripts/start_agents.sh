@@ -47,7 +47,7 @@ show_usage() {
     echo "                           nemotron  - Nemotron 3 Super Free (OpenCode Zen)"
     echo "                           mimo      - MiMo V2 Flash Free (OpenCode Zen)"
     echo "                           nvidia    - NVIDIA NIM API (requires API key)"
-    echo "  --proxy                   Run opencode through proxychains4"
+    echo "  --proxy                   Run with HTTP_PROXY environment variables"
     echo "  -h, --help                 Show this help message"
     echo ""
     echo "OpenCode Zen Free Models:"
@@ -62,7 +62,7 @@ show_usage() {
     echo "  $0 --model=minimax"
     echo "  $0 --model=nemotron --extra-prompt=\"Complex reasoning task\""
     echo "  $0 --model=nvidia --extra-prompt=\"Need NVIDIA\"  # NVIDIA with API key"
-    echo "  $0 --proxy --extra-prompt=\"Run through proxy\"  # With proxy enabled"
+    echo "  $0 --proxy --extra-prompt=\"Run through proxy\"  # With HTTP_PROXY enabled"
 }
 
 # Parse command line arguments
@@ -206,9 +206,10 @@ else
     export RALPH_MODE=0
 fi
 
-# USE_PROXY is passed to trigger script via command line, not exported
-# proxychains4 handles proxy at library level - no env vars needed
-[[ "$USE_PROXY" == "1" ]] && log "Proxy mode enabled (proxychains4)"
+if [[ "$USE_PROXY" == "1" ]]; then
+    export USE_PROXY
+    log "Proxy mode enabled (HTTP_PROXY method)"
+fi
 
 if [[ -n "${EXTRA_PROMPT_FILE:-}" ]]; then
     EXTRA_CONTENT=$(cat "$EXTRA_PROMPT_FILE")

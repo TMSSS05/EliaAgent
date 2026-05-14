@@ -1,5 +1,86 @@
 # EliaAI Release Notes - May 2026
 
+## Version: v1.2.0 (May 14, 2026)
+
+### Scheduler Fix: Real Enable/Disable System
+
+**Problem**: The launchd scheduler had `RunAtLoad=true` causing Elia to run immediately on every `install`/`enable`, even when "disabled" in the UI. The `.scheduler_state` file was display-only — it had no effect on whether launchd actually started the agent.
+
+**Solution**: Complete rewrite of the scheduler control system:
+
+#### New Commands in `manage_cron.sh`
+- `disable` — Unloads launchd plists, creates `.scheduler_disabled` flag, preserves all settings
+- `enable` — Removes disabled flag, reloads plists from saved settings
+- Settings (interval, hours) persist between disable/enable cycles
+
+#### Fixes
+- **`RunAtLoad=false`** — Plist template changed from `<true/>` to `<false/>`. No more immediate execution on install or login.
+- **`cron_wrapper.sh` guard** — Exits immediately if `.scheduler_disabled` exists (belt-and-suspenders)
+- **`install_scheduler`** — Respects disabled flag: writes plist to disk but doesn't load it
+- **`show` command** — Displays yellow `⏹ SCHEDULER DISABLED` banner when disabled
+
+#### Files Changed
+- `scripts/manage_cron.sh` — Added disable/enable commands, RunAtLoad=false, disabled flag check
+- `scripts/cron_wrapper.sh` — Added `.scheduler_disabled` early-exit guard
+
+---
+
+## Version: v1.1.0 (May 13, 2026)
+
+### New Integration: codemem (OpenCode Persistent Memory)
+
+**Added full codemem integration** at `integrations/codemem/` — persistent memory for OpenCode and Claude Code that captures work across sessions, retrieves relevant context using hybrid search, and injects context automatically.
+
+#### Features
+
+- **Local-first** — everything lives in SQLite on your machine
+- **Hybrid retrieval** — FTS5 BM25 lexical search + sqlite-vec semantic search, merged and re-ranked
+- **Automatic injection** — the OpenCode plugin injects context into every prompt, no manual steps
+- **Claude Code plugin support** — install from the codemem marketplace source
+- **Built-in viewer** — browse memories, sessions, and observer output in a local web UI
+- **Peer-to-peer sync** — replicate memories across machines without a central service
+- **Memory export/import** — share project knowledge with teammates
+- **CLI commands** — `codemem stats`, `codemem search`, `codemem recent`, `codemem serve`, etc.
+
+#### Local fixes applied
+
+- Observer pipeline fixes (ingest pipeline, observer client/config)
+- UI improvements (feed tab, filter state, health lifecycle, API layer)
+- Viewer server enhancements (config routes, plugin-observer support)
+- CLI fixes (pack, recent, search, serve commands)
+- Core fixes (memory store, raw event sweeper)
+
+#### Quick start
+
+```bash
+cd integrations/codemem
+pnpm install
+pnpm build
+pnpm run codemem --help
+```
+
+Or via npx (no install):
+```bash
+npx -y codemem stats
+```
+
+#### Setup
+
+```bash
+# OpenCode plugin and MCP config
+npx -y codemem setup --opencode-only
+
+# Restart OpenCode
+```
+
+#### What was synced
+
+- Full source tree (7.9MB, excluding node_modules/.git)
+- All 22 locally-modified files + 2 new files with fixes
+- Proper .gitignore for sensitive patterns (no credentials, DBs, or build artifacts leaked)
+
+---
+
 ## Version: v1.0.2 (May 3, 2026)
 
 ### Critical Proxy System Update

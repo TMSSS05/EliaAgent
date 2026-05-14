@@ -135,7 +135,7 @@ cp /Users/vakandi/EliaAgent/setup/RELEASENOTES.md /Users/vakandi/YOUR_PRIVATE_RE
 
 **For context files:**
 - Compare `context/business.md` - Public has placeholders, yours has real data
-- Compare `context/TOOLS.md` - Public has placeholders, yours has real tokens
+- Compare `context/TOOLS.md` - Public has placeholders, yours has real toikens
 - **Keep your versions** unless you want to adopt new structure
 
 **For prompt files:**

@@ -4,7 +4,7 @@ set -euo pipefail
 # Script to manually test codemem batch processing with OpenCode Zen (big-pickle)
 # This bypasses the observer client and directly tests the LLM call
 
-CODENEM_DIR="/Users/vakandi/Documents/codemem"
+CODENEM_DIR="/Users/vakandi/EliaAI/integrations/codemem"
 DB_PATH="/Users/vakandi/.codemem/mem.sqlite"
 LOG_FILE="/Users/vakandi/EliaAI/logs/codemem_batch_test.log"
 

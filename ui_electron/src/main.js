@@ -399,26 +399,24 @@ ipcMain.on('ulw-toggle', (_event, enabled) => {
 const manageCronScript = path.join(EliaAIRoot, 'scripts/manage_cron.sh');
 
 ipcMain.on('cron-toggle', (_event, { action, interval }) => {
-  const { exec } = require('child_process');
+  const { execSync } = require('child_process');
   let cmd;
   if (action === 'uninstall') {
     cmd = `/bin/zsh "${manageCronScript}" uninstall`;
-    console.log('Uninstalling cronjob...');
+    console.log('Uninstalling launchd scheduler (cron-toggle)...');
   } else if (action === 'install') {
     cmd = `/bin/zsh "${manageCronScript}" install --interval ${interval} --start 9 --end 23`;
-    console.log('Installing cronjob with interval:', interval);
+    console.log('Installing launchd scheduler with interval:', interval);
+  } else {
+    console.error('cron-toggle: unknown action', action);
+    return;
   }
-  exec(cmd, (error, stdout, stderr) => {
-    if (error) {
-      console.error('Cron toggle error:', error.message);
-    } else {
-      try {
-        console.log('Cron toggle result:', stdout || 'Done');
-      } catch (e) {
-        console.log('Cron toggle completed');
-      }
-    }
-  });
+  try {
+    execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    console.log('cron-toggle: OK');
+  } catch (error) {
+    console.error('Cron toggle error:', error.message);
+  }
 });
 
 ipcMain.on('show-cron-popup', () => {
@@ -558,17 +556,41 @@ ipcMain.on('execute-elia-command', () => {
         'minimax': 'minimax'
       };
       const modelValue = modelMap[model] || 'minimax';
-      // Run dictate.command in Terminal with ELIA_MODEL set so it can pass model to start_agents.sh.
-      // Proxy is handled by proxychains4 at library level (no env vars needed).
+
       const proxyEnabled = fs.existsSync(proxyStatePath);
-      const proxyPrefix = proxyEnabled ? 'proxychains4 -f ~/.proxychains.conf ' : '';
-      const cmd = `cd /Users/vakandi/EliaAI && ${proxyPrefix}export ELIA_MODEL=${modelValue} && /Users/vakandi/Documents/dictate.command`;
+
+      let cmd;
+      if (proxyEnabled) {
+        const proxyConf = require('path').join(require('os').homedir(), '.proxychains.conf');
+        try {
+          const proxyContent = fs.readFileSync(proxyConf, 'utf8');
+          const proxyLine = proxyContent.split('\n').find(l => l.trim() && !l.trim().startsWith('#') && l.includes('http '));
+          if (proxyLine) {
+            const parts = proxyLine.trim().split(/\s+/);
+            if (parts.length >= 5) {
+              const ip = parts[1];
+              const port = parts[2];
+              const user = parts[3];
+              const pass = parts[4];
+              const proxyUrl = `http://${user}:${pass}@${ip}:${port}`;
+              cmd = `cd /Users/vakandi/EliaAI && env HTTP_PROXY="${proxyUrl}" HTTPS_PROXY="${proxyUrl}" http_proxy="${proxyUrl}" https_proxy="${proxyUrl}" ELIA_MODEL=${modelValue} /Users/vakandi/Documents/dictate.command`;
+            }
+          }
+        } catch (e) {
+          console.error('Proxy config read error:', e.message);
+        }
+      }
+
+      if (!cmd) {
+        cmd = `cd /Users/vakandi/EliaAI && ELIA_MODEL=${modelValue} /Users/vakandi/Documents/dictate.command`;
+      }
+
       const script = [
         'tell application "Terminal" to activate',
         'tell application "Terminal" to do script ' + JSON.stringify(cmd),
         'delay 0.3',
         'tell application "Terminal" to set bounds of front window to {100, 50, 500, 900}'
-      ].map(s => `-e ${JSON.stringify(s)}`).join(' ');
+      ].map(s => '-e ' + JSON.stringify(s)).join(' ');
       exec(`osascript ${script}`, (error, stdout, stderr) => {
         if (error) console.error('Execution error:', error.message);
       });
@@ -582,9 +604,33 @@ ipcMain.on('execute-elia-command', () => {
 ipcMain.on('execute-mini-orb', () => {
   const { exec } = require('child_process');
   const proxyEnabled = fs.existsSync(proxyStatePath);
-  const proxyPrefix = proxyEnabled ? 'proxychains4 -f ~/.proxychains.conf ' : '';
   
-  const cmd = `${proxyPrefix}/Users/vakandi/EliaAI/scripts/voice-command-only.sh`;
+  let cmd;
+  if (proxyEnabled) {
+    const proxyConf = require('path').join(require('os').homedir(), '.proxychains.conf');
+    try {
+      const proxyContent = fs.readFileSync(proxyConf, 'utf8');
+      const proxyLine = proxyContent.split('\n').find(l => l.trim() && !l.trim().startsWith('#') && l.includes('http '));
+      if (proxyLine) {
+        const parts = proxyLine.trim().split(/\s+/);
+        if (parts.length >= 5) {
+          const ip = parts[1];
+          const port = parts[2];
+          const user = parts[3];
+          const pass = parts[4];
+          const proxyUrl = `http://${user}:${pass}@${ip}:${port}`;
+          cmd = `env HTTP_PROXY="${proxyUrl}" HTTPS_PROXY="${proxyUrl}" http_proxy="${proxyUrl}" https_proxy="${proxyUrl}" /Users/vakandi/EliaAI/scripts/voice-command-only.sh`;
+        }
+      }
+    } catch (e) {
+      console.error('Proxy config read error:', e.message);
+    }
+  }
+  
+  if (!cmd) {
+    cmd = '/Users/vakandi/EliaAI/scripts/voice-command-only.sh';
+  }
+  
   const script = [
     'tell application "Terminal" to activate',
     'delay 0.5',
@@ -672,77 +718,91 @@ function loadCurrentModel() {
   return 'minimax';
 }
 
-// Get current scheduler settings from launchd state file
+// Get current scheduler settings — standardEnabled follows the real LaunchAgent plist (not stale .scheduler_state).
 function getCurrentCronSettings() {
   const stateFile = path.join(EliaAIRoot, '.scheduler_state');
-  const launchdPlist = path.join(process.env.HOME || '/Users/vakandi', 'Library/LaunchAgents/com.elia.elia-agent.plist');
-  const morningPlist = path.join(process.env.HOME || '/Users/vakandi', 'library/LaunchAgents/com.elia.elia-agent-morning.plist');
-  
+  const home = process.env.HOME || '/Users/vakandi';
+  const launchdPlist = path.join(home, 'Library/LaunchAgents/com.elia.elia-agent.plist');
+  const morningPlist = path.join(home, 'Library/LaunchAgents/com.elia.elia-agent-morning.plist');
+  const plistInstalled = fs.existsSync(launchdPlist);
+
+  const parseIntervalFromPlist = (content) => {
+    const intervalMatch = content.match(/<key>StartInterval<\/key>\s*<integer>(\d+)<\/integer>/);
+    const calendarMatch = content.match(/<key>StartCalendarInterval<\/key>/);
+    const minuteMatches = content.match(/<key>Minute<\/key><integer>(\d+)<\/integer>/g);
+    let detectedInterval = '1h';
+    if (intervalMatch) {
+      const sec = parseInt(intervalMatch[1], 10);
+      detectedInterval =
+        sec === 1800 ? '30min' :
+        sec === 1200 ? '20min' :
+        sec === 7200 ? '2h' :
+        sec === 10800 ? '3h' :
+        sec === 14400 ? '4h' : '1h';
+    } else if (calendarMatch && minuteMatches) {
+      const minutes = minuteMatches.map((m) => parseInt(m.match(/\d+/)[0], 10));
+      if (minutes.includes(0) && minutes.includes(30)) detectedInterval = '30min';
+      else if (minutes.includes(0) && minutes.includes(20) && minutes.includes(40)) detectedInterval = '20min';
+      else if (minutes.length === 1 && minutes[0] === 0) detectedInterval = '1h';
+    }
+    return detectedInterval;
+  };
+
   try {
-    // First try to read state file
+    let fromFile = null;
     if (fs.existsSync(stateFile)) {
       const state = fs.readFileSync(stateFile, 'utf8');
       const lines = state.trim().split('\n');
       const settings = {};
-      lines.forEach(line => {
+      lines.forEach((line) => {
         const [key, value] = line.split('=');
         if (key && value !== undefined) {
           settings[key] = value;
         }
       });
-      
-      return {
+      fromFile = {
         morningEnabled: settings.morningEnabled === 'true',
-        morningHour: parseInt(settings.morningHour) || 10,
-        standardEnabled: settings.enabled === 'true',
+        morningHour: parseInt(settings.morningHour, 10) || 10,
         interval: settings.interval || '1h',
-        startHour: parseInt(settings.startHour) || 11,
-        endHour: parseInt(settings.endHour) || 21
+        startHour: parseInt(settings.startHour, 10) || 11,
+        endHour: parseInt(settings.endHour, 10) || 21,
       };
     }
-    
-    // Fallback: check if launchd plist exists (check both StartInterval and StartCalendarInterval)
-    if (fs.existsSync(launchdPlist)) {
+
+    if (plistInstalled) {
       const content = fs.readFileSync(launchdPlist, 'utf8');
-      const intervalMatch = content.match(/<key>StartInterval<\/key>\s*<integer>(\d+)<\/integer>/);
-      const calendarMatch = content.match(/<key>StartCalendarInterval<\/key>/);
-      const minuteMatches = content.match(/<key>Minute<\/key><integer>(\d+)<\/integer>/g);
-      
-      let detectedInterval = '1h';
-      if (intervalMatch) {
-        detectedInterval = parseInt(intervalMatch[1]) === 1800 ? '30min' : 
-                          parseInt(intervalMatch[1]) === 1200 ? '20min' :
-                          parseInt(intervalMatch[1]) === 7200 ? '2h' :
-                          parseInt(intervalMatch[1]) === 10800 ? '3h' :
-                          parseInt(intervalMatch[1]) === 14400 ? '4h' : '1h';
-      } else if (calendarMatch && minuteMatches) {
-        const minutes = minuteMatches.map(m => parseInt(m.match(/\d+/)[0]));
-        if (minutes.includes(0) && minutes.includes(30)) detectedInterval = '30min';
-        else if (minutes.includes(0) && minutes.includes(20) && minutes.includes(40)) detectedInterval = '20min';
-        else if (minutes.length === 1 && minutes[0] === 0) detectedInterval = '1h';
-      }
-      
+      const detectedInterval = parseIntervalFromPlist(content);
       return {
         morningEnabled: fs.existsSync(morningPlist),
-        morningHour: 10,
+        morningHour: fromFile?.morningHour ?? 10,
         standardEnabled: true,
-        interval: detectedInterval,
-        startHour: 9,
-        endHour: 23
+        interval: fromFile?.interval || detectedInterval,
+        startHour: fromFile?.startHour ?? 9,
+        endHour: fromFile?.endHour ?? 23,
+      };
+    }
+
+    if (fromFile) {
+      return {
+        morningEnabled: fs.existsSync(morningPlist),
+        morningHour: fromFile.morningHour,
+        standardEnabled: false,
+        interval: fromFile.interval,
+        startHour: fromFile.startHour,
+        endHour: fromFile.endHour,
       };
     }
   } catch (e) {
     console.error('Error reading scheduler state:', e.message);
   }
-  
-  // Default values if nothing found
+
   return {
-    morningEnabled: false,
+    morningEnabled: fs.existsSync(morningPlist),
     morningHour: 10,
     standardEnabled: false,
     interval: '1h',
     startHour: 11,
-    endHour: 21
+    endHour: 21,
   };
 }
 

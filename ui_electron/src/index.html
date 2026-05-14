@@ -1427,7 +1427,12 @@ function initCronFromState(cronEnabled_, cronInterval_) {
   
   // Update period badges
   selectPeriodBadge(selectedPeriod);
-  
+
+  localStorage.setItem('cronEnabled', cronEnabled_ ? 'true' : 'false');
+  if (cronInterval_) {
+    localStorage.setItem('cronPeriod', selectedPeriod);
+  }
+
   console.log('Cron initialized from state:', { cronEnabled: cronEnabled_, period: selectedPeriod });
 }
 
