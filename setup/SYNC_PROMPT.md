@@ -63,7 +63,20 @@ git diff --cached | grep -E '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'
 
 **If ANY of these find matches, DO NOT COMMIT. Fix the files first.**
 
-### 3. If secrets leaked into git history, use `git filter-repo`
+### 3. NEVER `git rm` without `--cached` on the private repo — breaks credentials on disk
+
+**⚠️ CRITICAL BUG (May 14, 2026)**: Running `git rm` (without `--cached`) on credential files in the PRIVATE repo **deletes them from disk permanently**. The main `.env`, docs/credentials.txt, etc. use `git rm --cached` which keeps files on disk — but integration `.env` files were `git rm`'d and lost.
+
+**Fix if this happens again:**
+```bash
+# Restore from git history (the file is still in the last commit)
+git show HEAD~0:path/to/deleted/file > path/to/deleted/file
+```
+
+**Never run `git rm` without `--cached` on the private working repo.**
+Only use `git rm --cached` (keeps file on disk) + `.gitignore` (prevents re-tracking).
+
+### 4. If secrets leaked into git history, use `git filter-repo`
 
 If GitHub rejects your push due to secret scanning, OR if you realize secrets are in a past commit:
 
@@ -85,7 +98,7 @@ git push origin main --force
 
 **⚠️ Warning**: `filter-repo` rewrites commit hashes. Anyone with a local clone will need to re-clone.
 
-### 4. Test the push BEFORE committing everything
+### 5. Test the push BEFORE committing everything
 
 Make small incremental commits and push after each:
 ```bash
@@ -99,7 +112,7 @@ git push origin main   # Continuous verification
 
 Don't batch 11 commits then push - you'll only discover problems at the end.
 
-### 5. Amending history should be a last resort
+### 6. Amending history should be a last resort
 
 If you must fix a commit before pushing:
 ```bash
@@ -107,7 +120,7 @@ If you must fix a commit before pushing:
 git commit --amend   # Add more changes or fix message
 ```
 
-### 6. Verify the target repo has the latest content
+### 7. Verify the target repo has the latest content
 
 After push, check the GitHub web UI to verify:
 ```bash
@@ -185,23 +198,18 @@ Or use explore agent for deeper analysis.
 - `integrations/elia-discord-bot/sessions.json` - Active sessions
 - `.scheduler_state` - Scheduler state files
 
-### Step 3: Clean Sensitive Data
+### Step 3: Clean Sensitive Data (NEVER modify source)
 
-Before copying, clean the source:
+**⚠️ CRITICAL**: NEVER `rm -rf` or `git rm` files in the SOURCE repo (`EliaAI`). This deletes credentials from disk and breaks the system.
+
+Instead, use `rsync --exclude` to skip sensitive files during copy to TARGET (`EliaAgent`). The source stays intact.
+
 ```bash
-# Clean EliaAI integrations before copy
-rm -rf /Users/vakandi/EliaAI/integrations/elia-discord-bot/.env
-rm -rf /Users/vakandi/EliaAI/integrations/elia-discord-bot/__pycache__
-rm -rf /Users/vakandi/EliaAI/integrations/elia-discord-bot/venv
-rm -rf /Users/vakandi/EliaAI/integrations/elia-discord-bot/logs
-rm -rf /Users/vakandi/EliaAI/integrations/elia-discord-bot/sessions.json
-rm -rf /Users/vakandi/EliaAI/ui_electron/node_modules
-rm -rf /Users/vakandi/EliaAI/ui_electron/.sisyphus
-rm -rf /Users/vakandi/EliaAI/ui_electron/store
-rm -rf /Users/vakandi/EliaAI/ui_electron/.jarvis-position.json
+# Safe: use --exclude patterns in rsync (source is never modified)
+# See Step 4 below for the full rsync commands
 ```
 
-**IMPORTANT**: After cleaning, also check for sensitive strings in the files you plan to copy. The following patterns should be scrubbed or replaced:
+**IMPORTANT**: Before copying, check for sensitive strings in files you plan to copy. Replace them in the TARGET copy only:
 - Real business names → Generic placeholders (e.g., "Your Company")
 - Real server IPs → `127.0.0.1` or `[server-ip]`
 - Real API keys → `[your-api-key]`
@@ -414,10 +422,12 @@ If you accidentally pushed private data:
 [ ] No personal names in clean files
 [ ] Template literals (${...}) are intact after copy
 [ ] `git diff --cached` reviewed for sensitive data
+[ ] NEVER `git rm` on source repo — only `--cached` (keeps files on disk)
+[ ] Integration `.env` files restored to disk after cleanup
 [ ] Incremental push working (not batching all commits)
 [ ] GitHub web UI shows correct content
 ```
 
 ---
 
-**Last updated**: May 13, 2026
+**Last updated**: May 14, 2026

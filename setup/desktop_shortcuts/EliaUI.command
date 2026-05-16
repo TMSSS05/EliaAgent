@@ -2,7 +2,19 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-# Configuration
+# =============================================================================
+# EliaUI — Tmux launcher for Elia AI development environment
+#
+# Creates a single tmux session "elia" with 3 panes in one window:
+#   Pane 0: OpenCode server (port 4096)
+#   Pane 1: Discord bot (start_elias_discord.sh)
+#   Pane 2: UI Electron (npm start)
+#
+# History: DO NOT CHANGE TO 4 WINDOWS. Original by Wael was always 3 panes.
+# An AI agent broke it to 4 windows on May 2 which caused start_agents.sh to
+# leak into the UI launcher. See git log if you're tempted to "improve" this.
+# =============================================================================
+
 SCRIPT_DIR="$HOME/EliaAI/scripts"
 LOG_DIR="$HOME/EliaAI/logs"
 SESSION_NAME="elia"
@@ -12,7 +24,7 @@ log() {
     echo "[$timestamp] [EliaUI] $*" >&2
 }
 
-log "=== EliaUI 4-Window Tmux Launcher ==="
+log "=== EliaUI 3-Pane Tmux Launcher ==="
 
 # Check tmux is installed
 if ! command -v tmux &>/dev/null; then
@@ -20,49 +32,53 @@ if ! command -v tmux &>/dev/null; then
     exit 1
 fi
 
-# Create log directory if needed
 mkdir -p "$LOG_DIR" 2>/dev/null || true
 
-# Kill existing session if present
+# Kill any existing session
 tmux kill-session -t "$SESSION_NAME" 2>/dev/null || true
 sleep 0.5
 
 log "Creating new tmux session: $SESSION_NAME"
 
-# Create the session with first window (OpenCode server)
-tmux new-session -d -s "$SESSION_NAME" -n "Elia-1" 2>/dev/null || {
-    log "ERROR: Failed to create tmux session"
-    exit 1
-}
+# Create session with 1 window
+tmux new-session -d -s "$SESSION_NAME" -n "Elia"
 sleep 0.3
 
-# Window 1: OpenCode server (port 4096)
-log "Setting up Window 1: OpenCode Server (port 4096)"
-tmux send-keys -t "$SESSION_NAME:0" "bash $SCRIPT_DIR/opencode-serve.sh 4096" Enter
-sleep 0.3
+# Split into 3 panes: horizontal split first, then vertical split on left
+# Layout after splits:
+#   ┌─────────────────┬──────────────┐
+#   │  Pane 0         │  Pane 1      │
+#   │  opencode-serve │  discord     │
+#   ├─────────────────┘              │
+#   │  Pane 2         │              │
+#   │  UI Electron    │              │
+#   └─────────────────┴──────────────┘
 
-# Window 2: CodeMem Viewer
-log "Setting up Window 2: CodeMem Viewer"
-tmux new-window -t "$SESSION_NAME" -n "Elia-2" 2>/dev/null || true
-sleep 0.3
-tmux send-keys -t "$SESSION_NAME:1" "bash $SCRIPT_DIR/codemem-viewer.sh" Enter
-sleep 0.3
+# Split horizontally (creates pane 1 on the right, 50% width)
+tmux split-window -h -t "$SESSION_NAME:0"
+sleep 0.2
 
-# Window 3: Agents
-log "Setting up Window 3: Agents"
-tmux new-window -t "$SESSION_NAME" -n "Elia-3" 2>/dev/null || true
-sleep 0.3
-tmux send-keys -t "$SESSION_NAME:2" "bash $SCRIPT_DIR/start_agents.sh" Enter
-sleep 0.3
+# Split pane 0 vertically (creates pane 2 below pane 0)
+tmux split-window -v -t "$SESSION_NAME:0.0"
+sleep 0.2
 
-# Window 4: UI (elia-ui.sh)
-log "Setting up Window 4: UI"
-tmux new-window -t "$SESSION_NAME" -n "Elia-4" 2>/dev/null || true
-sleep 0.3
-tmux send-keys -t "$SESSION_NAME:3" "bash $SCRIPT_DIR/elia-ui.sh" Enter
-sleep 0.3
+# Resize pane 2 (bottom-left) to be small — just shows UI logs
+tmux resize-pane -t "$SESSION_NAME:0.2" -y 8
+sleep 0.1
 
-# Select window 1 and attach
+# Pane 0: OpenCode Server (top-left)
+log "Starting OpenCode Server in Pane 0"
+tmux send-keys -t "$SESSION_NAME:0.0" "bash $SCRIPT_DIR/opencode-serve.sh 4096" Enter
+
+# Pane 1: Discord bot (right)
+log "Starting Discord bot in Pane 1"
+tmux send-keys -t "$SESSION_NAME:0.1" "bash $SCRIPT_DIR/start_elias_discord.sh" Enter
+
+# Pane 2: UI Electron (bottom-left, small pane)
+log "Starting UI Electron in Pane 2"
+tmux send-keys -t "$SESSION_NAME:0.2" "cd ~/EliaAI/ui_electron && npm start" Enter
+
+# Select pane 0 and attach
 log "Attaching to session..."
-tmux select-window -t "$SESSION_NAME:0"
+tmux select-pane -t "$SESSION_NAME:0.0"
 exec tmux attach -t "$SESSION_NAME"

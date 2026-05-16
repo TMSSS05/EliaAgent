@@ -215,19 +215,25 @@ generate_calendar_entries() {
 
 # Remove existing EliaAI launchd agents
 remove_elia_agents() {
-    # Unload and remove standard agent
-    if [[ -f "$LAUNCHD_PLIST" ]]; then
-        launchctl unload "$LAUNCHD_PLIST" 2>/dev/null || true
-        rm -f "$LAUNCHD_PLIST"
-        log "Removed standard launchd agent"
-    fi
+    # Search for ANY plist in LaunchAgents that references EliaAI scripts
+    # This catches alternative naming conventions (agency.elia.*, etc.)
+    for plist in "$LAUNCHD_DIR"/*.plist; do
+        [[ -f "$plist" ]] || continue
+        if grep -q "cron_wrapper.sh\|trigger_opencode\|trigger_morning.sh\|EliaAI/scripts" "$plist" 2>/dev/null; then
+            local label=$(basename "$plist" .plist)
+            launchctl unload "$plist" 2>/dev/null || true
+            rm -f "$plist"
+            log "Removed ElIA-related plist: $(basename "$plist")"
+        fi
+    done
     
-    # Unload and remove morning agent
-    if [[ -f "$LAUNCHD_MORNING_PLIST" ]]; then
-        launchctl unload "$LAUNCHD_MORNING_PLIST" 2>/dev/null || true
-        rm -f "$LAUNCHD_MORNING_PLIST"
-        log "Removed morning launchd agent"
-    fi
+    # Also remove known named plists directly (backward compat)
+    for known_plist in "$LAUNCHD_PLIST" "$LAUNCHD_MORNING_PLIST"; do
+        if [[ -f "$known_plist" ]]; then
+            launchctl unload "$known_plist" 2>/dev/null || true
+            rm -f "$known_plist"
+        fi
+    done
     
     # Clean up state
     rm -f "$STATE_FILE"
@@ -257,11 +263,20 @@ install_scheduler() {
     # Remove existing first
     remove_elia_agents
     
+    # Generate StartCalendarInterval based on start/end hours
+    calendar_entries=$(generate_calendar_entries "$interval" "$start_hour" "$end_hour")
+
+    # If scheduler is disabled, save state but do NOT write plist to LaunchAgents
+    # This prevents auto-load on next login
+    if [[ -f "$DISABLED_FLAG" ]]; then
+        warning "Scheduler is DISABLED (${DISABLED_FLAG} exists) — plist NOT written to LaunchAgents."
+        warning "Run './manage_cron.sh enable' to activate."
+        save_state "$interval" "$start_hour" "$end_hour" "$DEFAULT_MORNING_HOUR" "false" "false"
+        return 0
+    fi
+
     # Ensure LaunchAgents directory exists
     mkdir -p "$LAUNCHD_DIR"
-    
-    # Generate StartCalendarInterval based on start/end hours (FIX: respects hours)
-    calendar_entries=$(generate_calendar_entries "$interval" "$start_hour" "$end_hour")
     
     # Build the plist with StartCalendarInterval (fixed times like cron)
     cat > "$LAUNCHD_PLIST" << EOF
@@ -318,14 +333,6 @@ EOF
     # Backup to EliaAI folder
     cp "$LAUNCHD_PLIST" "$LOCAL_PLIST" 2>/dev/null || true
 
-    # If scheduler is disabled, write plist but don't load it
-    if [[ -f "$DISABLED_FLAG" ]]; then
-        warning "Scheduler is DISABLED (${DISABLED_FLAG} exists) — plist written but NOT loaded."
-        warning "Run './manage_cron.sh enable' to activate."
-        save_state "$interval" "$start_hour" "$end_hour" "$DEFAULT_MORNING_HOUR" "false" "false"
-        return 0
-    fi
-
     # Load the agent
     launchctl load "$LAUNCHD_PLIST"
 
@@ -347,6 +354,17 @@ install_morning_scheduler() {
     
     # Load existing state if present
     load_state
+    
+    # If scheduler is disabled, save state but do NOT write plist to LaunchAgents
+    if [[ -f "$DISABLED_FLAG" ]]; then
+        warning "Scheduler is DISABLED (${DISABLED_FLAG} exists) — morning plist NOT written to LaunchAgents."
+        warning "Run './manage_cron.sh enable' to activate."
+        local current_interval="${interval:-${DEFAULT_INTERVAL}}"
+        local current_start="${startHour:-${DEFAULT_START_HOUR}}"
+        local current_end="${endHour:-${DEFAULT_END_HOUR}}"
+        save_state "$current_interval" "$current_start" "$current_end" "$morning_hour" "false" "false"
+        return 0
+    fi
     
     # Remove existing morning agent first
     if [[ -f "$LAUNCHD_MORNING_PLIST" ]]; then
@@ -438,8 +456,16 @@ disable_scheduler() {
     fi
     if [[ -f "$LAUNCHD_MORNING_PLIST" ]]; then
         launchctl unload "$LAUNCHD_MORNING_PLIST" 2>/dev/null || true
-        log "Unloaded morning launchd plist"
+        rm -f "$LAUNCHD_MORNING_PLIST"
+        log "Unloaded and removed morning launchd plist"
     fi
+    # Kill any currently running agent sessions started by the scheduler
+    log "Killing any running agent sessions..."
+    pkill -f "trigger_opencode_interactive" 2>/dev/null || true
+    pkill -f "trigger_morning.sh" 2>/dev/null || true
+    pkill -f "start_agents.sh" 2>/dev/null || true
+    pkill -f "cron_wrapper.sh" 2>/dev/null || true
+    sleep 1
     touch "$DISABLED_FLAG"
     log "Disabled flag created: ${DISABLED_FLAG}"
     load_state
@@ -448,7 +474,7 @@ disable_scheduler() {
     local current_end="${endHour:-${DEFAULT_END_HOUR}}"
     local current_morning="${morningHour:-${DEFAULT_MORNING_HOUR}}"
     save_state "$current_interval" "$current_start" "$current_end" "$current_morning" "false" "false"
-    success "Scheduler disabled (settings preserved for re-enable)"
+    success "Scheduler disabled (all agents killed, settings preserved for re-enable)"
 }
 
 enable_scheduler() {

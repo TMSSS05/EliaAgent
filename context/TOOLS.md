@@ -35,9 +35,14 @@
 
 **MCP Server Location**: `/Users/vakandi/Documents/mcps_server/`
 
-## 📱 Telegram
-- Use `mcp-cli call telegram` for Telegram MCP operations
-- See mcp-cli SKILL.md for full Telegram commands
+## ⚠️ Jira MCP - Known Issues
+
+**Problème**: Certains tools ne sont pas exposés (create_issue, jira_search_issues)
+**Solution**: Utiliser `jira_get_project_issues` pour lister, puis navigateur web pour créer les tickets
+**Note**: Le MCP peut lire mais pas créer certains types de tickets
+
+## 📱 Telegram Username
+- **token_detective (Wael)**: @490522699404148756
 
 ---
 
@@ -175,7 +180,7 @@ mcp-cli call discord-mcp discord_send_dm '{"user_id":"...","message":"..."}'
 
 # Discord Server (EliaWorkSpace - bot account "watson")
 # Get server structure
-bash: cd ~/Documents/EliaVoiceRecorder && DISCORD_BOT_TOKEN="YOUR_BOT_TOKEN_HERE" python3 discord_server_structure.py
+bash: cd ~/Documents/EliaVoiceRecorder && DISCORD_BOT_TOKEN="[your-discord-bot-token]" python3 discord_server_structure.py
 
 # List channels
 mcp-cli call discord-server-mcp discord_execute '{"operation":"channels.list","params":{}}'
@@ -203,7 +208,7 @@ mcp-cli call discord-server-mcp discord_send_file '{"channel_id":"14892448107777
 # curl -X POST https://tmpfiles.org/api/v1/upload -F "file=@/path/to/file.pdf"
 
 # Or read from file:
-cat report.md | python3 tools/discord_send.py 1489244810777727046 --stdin
+cat report.md | python3 /Users/vakandi/EliaAI/tools/discord_send.py 1489244810777727046 --stdin
 
 # Server info
 mcp-cli call discord-server-mcp discord_execute '{"operation":"guild.get","params":{}}'
@@ -218,7 +223,7 @@ mcp-cli call discord-server-mcp discord_execute '{"operation":"guild.get","param
 | 📝-activity-logs | `1489244812107317402` |
 | 📚-knowledge | `1489244815790182450` |
 | ✅-tasks-tracker | `1489244818134794330` |
-| 🖥️-health-checks | `1489247935807099020` |
+| 💚-health-checks | `1489247935807099020` |
 
 ### BEN2LUXE (Jira: BEN) - DIFFERENT BUSINESS
 | Channel | Channel ID |
@@ -227,8 +232,8 @@ mcp-cli call discord-server-mcp discord_execute '{"operation":"guild.get","param
 | 📦-orders | `1489244862871244950` |
 | 👥-clients | `1489244868235755580` |
 | 📱-social-media | `1489244873847734292` |
-| 📤-marketing | `1489244878431846523` |
-| 📂-management | `1489246873998065745` |
+| 📣-marketing | `1489244878431846523` |
+| 🗂️-management | `1489246873998065745` |
 | tiktok-ai-to-copy | `1489247163824345228` |
 
 ### COBOU-AGENCY (Jira: COBOUAGENC) - DIFFERENT BUSINESS
@@ -238,18 +243,19 @@ mcp-cli call discord-server-mcp discord_execute '{"operation":"guild.get","param
 | 👥-clients | `1489244911449538680` |
 | 💻-dev-work | `1489244916352684045` |
 | 💰-invoices | `1489244921180455035` |
+| management | `1502898800690204683` |
 
 ### ZOVABOOST (Jira: ZOVAPANEL) - DIFFERENT BUSINESS
 | Channel | Channel ID |
 |---------|------------|
-| 💻-panel | `1489244946673176618` |
+| 🖥️-panel | `1489244946673176618` |
 | 👥-clients | `1489244951861661787` |
-| 🎨-support | `1489244963261780173` |
+| 🎧-support | `1489244963261780173` |
 
 ### MAYAVANTA (Jira: MAYA) - DIFFERENT BUSINESS
 | Channel | Channel ID |
 |---------|------------|
-| 🤝-concierge | `1489244961269485711` |
+| 🛎️-concierge | `1489244961269485711` |
 | 🚗-car-rental | `1489244967095238777` |
 | 🏜️-marrakech-ops | `1489244971772154057` |
 | 💻-dev | `1489246953861546115` |
@@ -267,14 +273,33 @@ mcp-cli call discord-server-mcp discord_execute '{"operation":"guild.get","param
 | 👜-products | `1489628023266480280` |
 | 📦-orders | `1489628028727459945` |
 | 👥-clients | `1489628029704736848` |
-| 📤-marketing | `1489628033089536162` |
+| 📣-marketing | `1489628033089536162` |
 | management | `1490351010252591154` |
+
+### TIKTOK-YOUTUBE (Jira: TIKYT)
+| Channel | Channel ID |
+|---------|------------|
+| 🎥-content | `1489244954646679662` |
+| 📆-scheduling | `1489244960245940254` |
+| 📊-analytics | `1489244965337956514` |
+| 💻-dev | `1489246932629979206` |
+
+### Trading
+| Channel | Channel ID |
+|---------|------------|
+| général | `1498233249925824542` |
+
+### Other
+| Channel | Channel ID |
+|---------|------------|
+| error | `1497426963084611654` |
 
 ### Voice Channels
 | Channel | Channel ID |
 |---------|------------|
 | Chill Calls | `1489245009285877951` |
 | Meeting Room | `1489245018261557550` |
+| AFK | (no fixed ID) |
 
 ### Root Channels
 | Channel | ID |
@@ -294,6 +319,7 @@ mcp-cli call discord-server-mcp discord_execute '{"operation":"guild.get","param
 | MAYAVANTA | `1489244774882873364` |
 | TEAM | `1489244778347499691` |
 | OGBOUJEE | `1489628000730484938` |
+| Trading | `1498233208079257642` |
 
 # Gmail (server id: gmail — check tools: mcp-cli info gmail search_emails)
 mcp-cli call gmail search_emails '{"query":"in:inbox newer_than:7d","maxResults":20}'
@@ -302,9 +328,13 @@ mcp-cli call gmail draft_email '{"to":["you@example.com"],"subject":"Subject","b
 mcp-cli call gmail send_email '{"to":["you@example.com"],"subject":"Subject","body":"Plain text body"}'
 mcp-cli call gmail list_email_labels '{}'
 
-# Gmail-tweetsyncai (server id: gmail-tweetsyncai)
+# Gmail-tweetsyncai (server id: gmail-tweetsyncai — tweetsyncai@gmail.com)
 ## ⚠️ IMPORTANT: This Gmail is for Bene2Luxe Snapchat Ads ONLY!
-## Reason: Snapchat Business Ads requires a personal Gmail to create business ads account.
+## Reason: Snapchat Business Ads requires a personal Gmail to create business ads account. Our business emails (contact@bene2luxe.com, contact@cofibou-distribution) cannot create business ads accounts, so we used tweetsyncai@gmail.com for this purpose.
+## Use this Gmail MCP for:
+## - Bene2Luxe Snapchat Ads management
+## - Any business ads-related communications for Bene2Luxe
+## - DO NOT use for general emails — use contact@bene2luxe.com or contact@cofibou-distribution for that
 mcp-cli call gmail-tweetsyncai search_emails '{"query":"in:inbox newer_than:7d","maxResults":20}'
 mcp-cli call gmail-tweetsyncai read_email '{"messageId":"..."}'
 mcp-cli call gmail-tweetsyncai send_email '{"to":["you@example.com"],"subject":"Subject","body":"Plain text body"}'
@@ -314,7 +344,7 @@ mcp-cli call gmail-tweetsyncai send_email '{"to":["you@example.com"],"subject":"
 ## Morning Routine Integration
 
 **In the morning routine (MORNING_PROMPT.md), Elia MUST:**
-1. Run `./tools/get_ide_work.sh` - ALWAYS extract IDE work
+1. Run `python3 /Users/vakandi/EliaAI/tools/get_ide_work.sh` - ALWAYS extract IDE work
 2. Check and update Google Calendar with reminders for time-sensitive items
 3. Check and update Google Tasks for new todo items
 4. After gathering data from all sources (WhatsApp, Discord, Email), sync findings to Google Workspace
@@ -411,12 +441,12 @@ mcp-cli call ssh-mpc-server-multisaasdeploy execute-command '{"cmdString":"ls -l
 | OGBOUJEE 👜 BUSINESS | `120363425082264099@g.us` |
 | MAYAVANTA | `120363405622746597@g.us` |
 
-### WhatsApp Individual IDs
-| Membre | WhatsApp ID | Pays |
-|--------|-----------|------|
-| Thomas | [ID] | France |
-| Rida | [ID] | [À confirmer] |
-| Ali | [ID] | Suisse |
+### WhatsApp Individual IDs (CRITICAL)
+| Membre | WhatsApp ID | Téléphone | Pays |
+|--------|-----------|---------|------|
+| Thomas | 165558221861055 | +33 6 29 35 22 37 | France |
+| Rida | 131319447212112 | [À confirmer] | [À confirmer] |
+| Ali | 178481677779049 | +41 (Suisse) | ✅ CORRIGÉ |
 
 ---
 
@@ -424,11 +454,13 @@ mcp-cli call ssh-mpc-server-multisaasdeploy execute-command '{"cmdString":"ls -l
 
 **Info:** `agent-browser -h`
 
-**Use real Google Chrome** (not Chrome for Testing) to reduce bot detection on heavy/repetitive tasks.
+⚠️ **ALWAYS use `--profile ~/.agent-browser-profile` for logged-in sessions** (saved passwords, cookies, auth). This is the ONLY supported mode. Never use `--executable-path` without `--profile`.
 
 ```bash
-# Navigation
-agent-browser open <url> --executable-path "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headed
+# ⚠️ ALWAYS close first, then open with profile + headed mode
+agent-browser close && agent-browser --profile ~/.agent-browser-profile --headed open "<url>"
+
+# Navigation & interaction
 agent-browser click <selector>
 agent-browser fill <selector> <text>
 agent-browser snapshot
@@ -459,11 +491,6 @@ agent-browser eval "(function() {
   }); 
   return items; 
 })()"
-
-# Alias (add to ~/.zshrc): alias chrome="agent-browser --executable-path \"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\" --headed"
-chrome open <url>   # Visible browser with real Chrome (less bot detection)
-chrome snapshot     # Take screenshot
-chrome eval "js code"  # Execute JavaScript (for complicated tasks)
 ```
 
 More options: `agent-browser -h`
@@ -497,7 +524,9 @@ whisper /path/to/audio.ogg --model large-v3 --language French --task transcribe
 **Info:** `gws-workspace -h` or `gws-workspace help`
 
 ```bash
-gws-workspace create-event "Title" "Desc"
+gws-workspace create-event "Title" "Desc"            # Calendar event without Meet
+gws-workspace create-meet "Title" "Desc"              # Calendar event WITH Google Meet link
+gws-workspace create-meet "Title" "Desc" "2026-05-10T15:30:00" "2026-05-10T16:30:00"  # + start/end times
 gws-workspace create-task "Task" "Notes"
 gws-workspace import-md "file.md" "Title"
 gws-workspace list-events
@@ -530,21 +559,23 @@ mcp-cli call discord-server-mcp discord_execute '{"operation":"events.create","p
 ### For External Meetings or Personal Tasks:
 **→ Use Google Calendar with Google Meet link**
 ```bash
-# Create Google Calendar event with Meet link
-gws-workspace create-event "Meeting Title" "Description"
+# Create Google Calendar event WITH Google Meet link (preferred)
+gws-workspace create-meet "Meeting Title" "Description"
 
-# Or create directly with Meet link generation (if available):
-python3 tools/google_workspace.py create-event "Meeting" "Desc"
-# The event will have a Google Meet link auto-generated
+# With specific start/end times:
+gws-workspace create-meet "Meeting Title" "Desc" "2026-05-10T15:30:00" "2026-05-10T16:30:00"
+
+# Create event without Meet (basic)
+gws-workspace create-event "Meeting Title" "Description"
 ```
 
-**Note:** Google Meet links are automatically generated when creating Google Calendar events with video conferencing enabled.
+**Note:** `create-meet` creates a Calendar event + auto-generates a Google Meet link (returns both the Calendar URL and the `meet.google.com/xxx` link).
 
 ### Summary:
 | Type of Meeting | Where to Create | Tool |
 |----------------|-----------------|------|
 | Discord Team Meeting (Wael asks) | Discord Server | `discord-server-mcp events.create` |
-| External/Personal Meeting | Google Calendar | `gws-workspace create-event` |
+| External/Personal Meeting | Google Calendar | `gws-workspace create-meet` (with Meet link) or `gws-workspace create-event` |
 
 ---
 
@@ -606,8 +637,6 @@ elia-speak -x "Message"                        # fallback
 ~/.local/bin/protonmail list -t spam          # Spam
 ~/.local/bin/protonmail list -t allmail        # All mail
 ```
-
-**⚠️ Configure your ProtonMail account** — see ProtonMail CLI docs for setup.
 
 ---
 
@@ -691,10 +720,10 @@ task(category="bene2luxe", prompt="Create product listing")
 ```
 
 **Context paths to reference:**
-- Business context: `context/business.md`
-- Tools: `context/TOOLS.md`
-- Memory: `memory/MEMORY.md`
-- Today docs: `docs/YYYY-MM-DD/`
+- Business context: `/Users/vakandi/EliaAI/context/business.md`
+- Tools: `/Users/vakandi/EliaAI/context/TOOLS.md`
+- Memory: `/Users/vakandi/EliaAI/memory/MEMORY.md`
+- Today docs: `/Users/vakandi/EliaAI/docs/2026-04-20/`
 - Jira: `https://bsbagency.atlassian.net` (project BEN, COBOUAGENC, etc.)
 
 ### High-Value Tasks to Execute
@@ -731,14 +760,14 @@ task(category="bene2luxe", prompt="Create product listing")
 
 ## 🖼️ Image Generation (Bene2Luxe - Higgsfield.ai)
 
-**⚠️ ALWAYS use this script for image generation** - Script: `generate_photo_higgsfield.py`
+**⚠️ ALWAYS use this script for image generation** - Script: `/Users/vakandi/Documents/HiggsFieldGenerator/generate_photo_higgsfield.py`
 
 The script automatically uses UNLIMITED mode (free, no credits).
 
 ### Quick Commands
 
 ```bash
-cd /path/to/HiggsFieldGenerator
+cd /Users/vakandi/Documents/HiggsFieldGenerator
 
 # Mascoot scenarios
 python3 generate_photo_higgsfield.py mascoot vacation
@@ -792,7 +821,7 @@ The script monitors queue via eval:
 5. **Click Generate** - Click the Unlimited button
 6. **Monitor queue** - Via JavaScript eval
 
-**Documentation**: See `docs/GENERATE_PHOTO_README.md` in the HiggsFieldGenerator directory.
+**Documentation**: `/Users/vakandi/Documents/HiggsFieldGenerator/docs/GENERATE_PHOTO_README.md`
 
 ---
 
@@ -824,9 +853,9 @@ mempalace init /path/to/folder --yes
 mempalace mine /path/to/folder
 
 # Search (pick ONE folder - they are duplicates!)
-mempalace search docs/ "query"
+mempalace search /Users/vakandi/EliaAI/docs/ "query"
 # OR
-mempalace search brain/ "query"
+mempalace search /Users/vakandi/EliaAI/brain/ "query"
 ```
 
 ### Current Setup
@@ -835,8 +864,8 @@ mempalace search brain/ "query"
 
 | Wing | Path | Files | Rooms |
 |------|------|-------|-------|
-| `docs` | `docs/` | [varies] | diagram_elia_structure, general |
-| `brain` | `brain/` | [varies] | linkers, documentation, frontend, raw, general |
+| `docs` | `/Users/vakandi/EliaAI/docs/` | 803 | diagram_elia_structure, general |
+| `brain` | `/Users/vakandi/EliaAI/brain/` | 857 | linkers, documentation, frontend, raw, general |
 
 **Both contain the same content** — choose one based on search needs:
 - docs: raw files, daily logs, transcriptions
@@ -932,14 +961,16 @@ session_read(session_id="ses_2c5e08b72ffe8LHrj9AAGc7dyI")
 
 Sessions are also saved as log files:
 ```
-logs/
-├── opencode_interactive_YYYYMMDD_HHMMSS.log    # Cron run logs
+/Users/vakandi/EliaAI/logs/
+├── opencode_interactive_20260329_160001.log    # Cron run at 16:00
+├── opencode_interactive_20260329_180001.log    # Cron run at 18:00
+├── opencode_interactive_20260330_120001.log    # Today's run
 └── ...
 ```
 
 **Quick check via bash:**
 ```bash
-ls -la logs/opencode_interactive_*.log | tail -10
+ls -la /Users/vakandi/EliaAI/logs/opencode_interactive_2026*.log | tail -10
 ```
 
 ### Context Continuity Rule

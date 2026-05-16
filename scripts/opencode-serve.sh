@@ -146,6 +146,22 @@ health_check() {
     return 0
 }
 
+is_already_opencode_server() {
+    local pid=$(get_port_pid)
+    [[ -z "$pid" ]] && return 1
+    
+    local process_name=$(ps -p "$pid" -o comm= 2>/dev/null || echo "")
+    [[ "$process_name" == *"opencode"* ]] || return 1
+    
+    if nc -z 127.0.0.1 "$PORT" 2>/dev/null; then
+        log "[SERVER] Found existing opencode server on port $PORT (PID: $pid)"
+        echo "$pid" > "$PID_FILE"
+        return 0
+    fi
+    
+    return 1
+}
+
 cleanup() {
     log "[SIGNAL] Received shutdown signal - cleaning up..."
     stop_server_process
@@ -158,16 +174,22 @@ trap cleanup SIGTERM SIGINT SIGHUP
 main() {
     preflight_check
     
-    kill_port_process || {
-        log "ERROR: Could not free port $PORT"
-        exit 1
-    }
-    
     log "=== OpenCode Server Robust Launcher ==="
     log "Port: $PORT"
     log "Log file: $LOG_FILE"
     log "Max restarts: $MAX_RESTARTS"
     log "PID file: $PID_FILE"
+    
+    # Check if a healthy opencode server is ALREADY running — don't touch it
+    if is_already_opencode_server; then
+        log "[SERVER] Existing opencode server is healthy — exiting cleanly (no kill)"
+        exit 0
+    fi
+    
+    kill_port_process || {
+        log "ERROR: Could not free port $PORT"
+        exit 1
+    }
     
     local restart_count=0
     local current_delay=$INITIAL_RESTART_DELAY

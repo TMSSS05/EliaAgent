@@ -65,22 +65,22 @@ start_mcp_servers() {
             case "$server" in
                 "telegram")
                     cd /Users/vakandi/Documents/mcps_server/telegram-mcp-server 2>/dev/null && \
-                    TELEGRAM_API_ID="YOUR_TELEGRAM_API_ID" \
-                    TELEGRAM_API_HASH="YOUR_TELEGRAM_API_HASH" \
-                    TG_BOT_TOKEN="YOUR_TELEGRAM_BOT_TOKEN" \
-                    TG_CHAT_ID="YOUR_TELEGRAM_CHAT_ID" \
-                    TG_USER_ID="YOUR_TELEGRAM_USER_ID" \
+                    TELEGRAM_API_ID="29625025" \
+                    TELEGRAM_API_HASH="d9c784ff0c5b2a189c3292193711701f" \
+                    TG_BOT_TOKEN="8532030884:AAEwz4uDw-yqBmTkYp8GUAPlp2ZumqJs6EY" \
+                    TG_CHAT_ID="-1003640048371" \
+                    TG_USER_ID="5660154750" \
                     DISABLE_APPROVALS_POLLING="true" \
                     node dist/index.js >> "$LOG_DIR/mcp_telegram.log" 2>&1 &
                     ;;
                 "mcp-atlassian")
                     cd /Users/vakandi && \
-                    JIRA_URL="https://YOUR_ATLASSIAN_DOMAIN.atlassian.net" \
-                    JIRA_USERNAME="YOUR_EMAIL" \
-                    JIRA_API_TOKEN="YOUR_JIRA_API_TOKEN" \
-                    CONFLUENCE_URL="https://YOUR_ATLASSIAN_DOMAIN.atlassian.net/wiki" \
-                    CONFLUENCE_USERNAME="YOUR_EMAIL" \
-                    CONFLUENCE_API_TOKEN="YOUR_CONFLUENCE_API_TOKEN" \
+                    JIRA_URL="https://bsbagency.atlassian.net" \
+                    JIRA_USERNAME="wael.bousfira@gmail.com" \
+                    JIRA_API_TOKEN="[your-jira-api-token]" \
+                    CONFLUENCE_URL="[your-confluence-url]" \
+                    CONFLUENCE_USERNAME="[your-email]" \
+                    CONFLUENCE_API_TOKEN="[your-confluence-api-token]" \
                     /Users/vakandi/.local/bin/uvx mcp-atlassian >> "$LOG_DIR/mcp_atlassian.log" 2>&1 &
                     ;;
                 "bene2luxe_mcp")
@@ -140,13 +140,29 @@ start_codemem_viewer() {
         return 0
     fi
     
-    echo "[CODEMEM] Starting codemem viewer from integrations..."
-    nohup /Users/vakandi/.nvm/versions/node/v20.20.2/bin/node /Users/vakandi/EliaAI/integrations/codemem/packages/cli/dist/index.js serve start --foreground --host 127.0.0.1 --port $CODEMEM_PORT --db-path ~/.codemem/mem.sqlite >> "$LOG_DIR/codemem_viewer.log" 2>&1 &
+    echo "[CODEMEM] Starting codemem viewer from local dist..."
+    # Method 1: local built dist (uses node from PATH: /opt/homebrew/bin/node v25 for native modules)
+    nohup node \
+        /Users/vakandi/EliaAI/integrations/codemem/packages/cli/dist/index.js \
+        serve start --foreground --host 127.0.0.1 --port $CODEMEM_PORT \
+        --db-path ~/.codemem/mem.sqlite \
+        >> "$LOG_DIR/codemem_viewer.log" 2>&1 &
     
     sleep 3
     
     if lsof -i :$CODEMEM_PORT 2>/dev/null | grep -q LISTEN; then
-        echo "[CODEMEM] Viewer started successfully (port $CODEMEM_PORT)"
+        echo "[CODEMEM] Viewer started successfully via local dist"
+        return 0
+    fi
+    
+    # Method 2: npx fallback (works if codemem is in npm cache or can be fetched)
+    echo "[CODEMEM] Local dist failed, trying npx fallback..."
+    npx -y codemem@0.29.1 serve start --foreground --host 127.0.0.1 --port $CODEMEM_PORT --db-path ~/.codemem/mem.sqlite >> "$LOG_DIR/codemem_viewer.log" 2>&1 &
+    
+    sleep 3
+    
+    if lsof -i :$CODEMEM_PORT 2>/dev/null | grep -q LISTEN; then
+        echo "[CODEMEM] Viewer started successfully via npx"
         return 0
     else
         echo "[CODEMEM] WARNING: Viewer may not have started. Check $LOG_DIR/codemem_viewer.log"
@@ -154,7 +170,9 @@ start_codemem_viewer() {
     fi
 }
 
-start_codemem_viewer
+# CRITICAL: Do NOT let set -e crash the script if viewer fails to start
+# The agent can still run without the viewer (memory capture is best-effort)
+start_codemem_viewer || true
 
 # Check OMO and ULW/Ralph toggle states
 OMO_DISABLED_FILE="${AGENT_DIR}/.omo_disabled"
@@ -216,6 +234,9 @@ send_ntfy() {
     local message="$2"
     curl -s -H "Title: ${title}" "https://ntfy.sh/${NTFY_TOPIC}" -d "${message}" >/dev/null 2>&1 || true
 }
+
+# OpenCode server port
+OPENCODE_PORT=4096
 
 # Only apply lock mechanism for CRON runs (ELIA_CRON=1 set by cron_wrapper.sh)
 # Voice trigger/manual runs bypass this check
@@ -329,6 +350,10 @@ fi
 # CRITICAL: Include codemem plugin path for memory system to work
 export OPENCODE_PLUGIN_PATH="/Users/vakandi/.config/opencode/plugin:/Users/vakandi/EliaAI/integrations/codemem/packages/opencode-plugin"
 
+# Enable codemem plugin logging so we can diagnose observer issues
+export CODEMEM_PLUGIN_LOG="true"
+export CODEMEM_PLUGIN_DEBUG="true"
+
 # Check USE_PROXY flag - also check .proxy_enabled file as backup
 if [[ "${USE_PROXY:-0}" == "1" ]]; then
     echo "Proxy mode enabled (HTTP_PROXY env)"
@@ -354,6 +379,12 @@ if [[ "${USE_PROXY:-0}" == "1" ]]; then
             echo "Loaded proxy: $ip:$port (HTTP_PROXY env vars ready)"
         fi
     fi
+    
+    # CRITICAL: Ensure localhost/127.0.0.1 bypasses the proxy
+    # The codemem plugin, MCP servers, and other local services need direct access
+    # Without this, Node.js fetch() routes 127.0.0.1 through the proxy which returns 403
+    export NO_PROXY="127.0.0.1,localhost"
+    export no_proxy="127.0.0.1,localhost"
 fi
 
 
@@ -519,45 +550,45 @@ fi
 echo "DEBUG: FULL_LOOP_MESSAGE length = ${#FULL_LOOP_MESSAGE}"
 echo "DEBUG: FIRST 200 chars = ${FULL_LOOP_MESSAGE:0:200}"
 
-OPENCODE_PORT=4096
-
+# Always start our own server instance (don't rely on existing ones that may be broken)
 if nc -z 127.0.0.1 $OPENCODE_PORT 2>/dev/null; then
-    if [[ "${USE_PROXY:-0}" == "1" ]]; then
-        SERVER_PID=$(lsof -ti :$OPENCODE_PORT 2>/dev/null | head -1)
-        if [[ -n "$SERVER_PID" ]]; then
-            echo "[SERVER] USE_PROXY=1 - restarting server with HTTP_PROXY..."
-            kill -9 $SERVER_PID 2>/dev/null || true
-            sleep 2
-        fi
-        echo "[SERVER] Starting new server with HTTP_PROXY..."
-        if [[ -n "${PROXY_HTTP:-}" ]]; then
-            nohup env HTTP_PROXY="$PROXY_HTTP" HTTPS_PROXY="$PROXY_HTTPS" http_proxy="$PROXY_HTTP" https_proxy="$PROXY_HTTPS" "$OPENCODE_BIN" serve --port $OPENCODE_PORT \
-                > /tmp/opencode_server_${OPENCODE_PORT}.log 2>&1 &
-        else
-            nohup "$OPENCODE_BIN" serve --port $OPENCODE_PORT \
-                > /tmp/opencode_server_${OPENCODE_PORT}.log 2>&1 &
-        fi
-        SERVER_PID=$!
-        sleep 3
-        if nc -z 127.0.0.1 $OPENCODE_PORT 2>/dev/null; then
-            echo "[SERVER] Server restarted successfully on port $OPENCODE_PORT (PID: $SERVER_PID)"
-        else
-            echo "[SERVER] WARNING: Server may not have started properly"
-        fi
-    else
-        echo "OpenCode server running on port $OPENCODE_PORT - will auto-attach"
+    echo "[SERVER] Existing server detected on port $OPENCODE_PORT - stopping it first..."
+    SERVER_PID=$(lsof -ti :$OPENCODE_PORT 2>/dev/null | head -1)
+    if [[ -n "$SERVER_PID" ]]; then
+        kill -9 $SERVER_PID 2>/dev/null || true
+        sleep 2
     fi
-else
-    echo "No existing server - will start new one on port $OPENCODE_PORT"
-    if [[ -n "${PROXY_HTTP:-}" ]]; then
-        nohup env HTTP_PROXY="$PROXY_HTTP" HTTPS_PROXY="$PROXY_HTTPS" http_proxy="$PROXY_HTTP" https_proxy="$PROXY_HTTPS" "$OPENCODE_BIN" serve --port $OPENCODE_PORT \
-            > /tmp/opencode_server_${OPENCODE_PORT}.log 2>&1 &
-    else
-        nohup "$OPENCODE_BIN" serve --port $OPENCODE_PORT \
-            > /tmp/opencode_server_${OPENCODE_PORT}.log 2>&1 &
-    fi
-    sleep 3
 fi
+
+echo "[SERVER] Starting fresh server on port $OPENCODE_PORT..."
+if [[ -n "${PROXY_HTTP:-}" ]]; then
+    # IMPORTANT: OpenCode serve does NOT need HTTP_PROXY. If the proxy env vars
+    # are present, the OpenCode binary's HTTP client routes ALL requests through
+    # the proxy — including local plugin → viewer (127.0.0.1:38888) requests.
+    # The Webshare proxy returns 403 for localhost destinations
+    # (client_connect_invalid_ip), breaking the codemem plugin.
+    # Only the RUN command (inherits proxy from shell) needs outbound proxy access.
+    nohup env NO_PROXY="127.0.0.1,localhost,::1" no_proxy="127.0.0.1,localhost,::1" "$OPENCODE_BIN" serve --port $OPENCODE_PORT \
+        > /tmp/opencode_server_${OPENCODE_PORT}.log 2>&1 &
+else
+    nohup "$OPENCODE_BIN" serve --port $OPENCODE_PORT \
+        > /tmp/opencode_server_${OPENCODE_PORT}.log 2>&1 &
+fi
+SERVER_PID=$!
+
+# Wait for server to become available (up to 10 seconds)
+echo "[SERVER] Waiting for server to become available on port $OPENCODE_PORT..."
+for i in $(seq 1 10); do
+    if nc -z 127.0.0.1 $OPENCODE_PORT 2>/dev/null; then
+        echo "[SERVER] Server started successfully on port $OPENCODE_PORT (PID: $SERVER_PID, attempt: ${i}s)"
+        break
+    fi
+    if [[ $i -eq 10 ]]; then
+        echo "[SERVER] WARNING: Server may not have started properly after 10s - check /tmp/opencode_server_${OPENCODE_PORT}.log"
+    else
+        sleep 1
+    fi
+done
 
 
 echo ""
@@ -567,14 +598,14 @@ echo "========================================" | tee -a "$LOGFILE"
 echo "" | tee -a "$LOGFILE"
 
 if [[ "${USE_PROXY:-0}" == "1" ]]; then
-    echo "Running with proxy (server started with proxychains4, attaching to it)..." | tee -a "$LOGFILE"
-    echo "EXEC: oh-my-opencode run --attach http://127.0.0.1:$OPENCODE_PORT -a elia \"/${LOOP_COMMAND} ...\"" | tee -a "$LOGFILE"
-    stdbuf -oL -eL oh-my-opencode run --attach "http://127.0.0.1:$OPENCODE_PORT" -a elia "/${LOOP_COMMAND} ${FULL_LOOP_MESSAGE}" 2>&1 | tee -a "$LOGFILE"
+    echo "Running with proxy (fresh server on port $OPENCODE_PORT)..." | tee -a "$LOGFILE"
+    echo "EXEC: oh-my-opencode run -a elia --port $OPENCODE_PORT \"/${LOOP_COMMAND} ...\"" | tee -a "$LOGFILE"
+    stdbuf -oL -eL oh-my-opencode run -a elia --port "$OPENCODE_PORT" "/${LOOP_COMMAND} ${FULL_LOOP_MESSAGE}" 2>&1 | tee -a "$LOGFILE"
     EXIT_CODE=$?
 elif [[ "$OMO_ENABLED" == "true" ]]; then
     echo "Running with oh-my-opencode (OMO enabled)..." | tee -a "$LOGFILE"
-    echo "EXEC: oh-my-opencode run -a elia \"/${LOOP_COMMAND} \$FULL_LOOP_MESSAGE\"" | tee -a "$LOGFILE"
-    stdbuf -oL -eL oh-my-opencode run -a elia "/${LOOP_COMMAND} ${FULL_LOOP_MESSAGE}" 2>&1 | tee -a "$LOGFILE"
+    echo "EXEC: oh-my-opencode run -a elia --port $OPENCODE_PORT \"/${LOOP_COMMAND} \$FULL_LOOP_MESSAGE\"" | tee -a "$LOGFILE"
+    stdbuf -oL -eL oh-my-opencode run -a elia --port "$OPENCODE_PORT" "/${LOOP_COMMAND} ${FULL_LOOP_MESSAGE}" 2>&1 | tee -a "$LOGFILE"
     EXIT_CODE=$?
 else
     echo "Running with direct opencode (OMO disabled)..." | tee -a "$LOGFILE"

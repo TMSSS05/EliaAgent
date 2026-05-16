@@ -135,13 +135,13 @@ IP:PORT:USERNAME:PASSWORD
 
 Example:
 ```
-45.39.15.65:6495:lwuoryyz:4hj7h5n7ozid
-89.249.196.92:6677:lwuoryyz:4hj7h5n7ozid
+[your-proxy-ip:port:user:pass]
+[your-proxy2-ip:port:user:pass]
 ```
 
 After use, history is appended:
 ```
-45.39.15.65:6495:lwuoryyz:4hj7h5n7ozid |last:2026-03-24 01:17:42 |dur:0h 5m
+[your-proxy-ip:port:user:pass] |last:2026-03-24 01:17:42 |dur:0h 5m
 ```
 
 ### Setup
@@ -242,7 +242,7 @@ To clear all history and start fresh:
 ```bash
 # Clear proxies.txt (keeps proxy list, removes history)
 cat > ~/EliaAI/setup/proxies.txt << 'EOF'
-45.39.15.65:6495:lwuoryyz:4hj7h5n7ozid
+[your-proxy-ip:port:user:pass]
 YOUR_OTHER_PROXY:PORT:USER:PASS
 EOF
 
@@ -1480,7 +1480,7 @@ Each SSH server has a `--blacklist` argument:
     "-y",
     "@fangjunjie/ssh-mcp-server",
     "--host",
-    "157.180.75.87",
+    "[your-server-ip]",
     ...
     "--blacklist",
     "^docker\\s+(exec|run.*postgres|...),..."

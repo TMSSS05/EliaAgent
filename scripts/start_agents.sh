@@ -10,6 +10,13 @@ AGENT_DIR="$(dirname "$SCRIPT_DIR")"
 TRIGGER_SCRIPT="${AGENT_DIR}/scripts/trigger_opencode_interactive.sh"
 PROMPT_FILE="${AGENT_DIR}/PROMPT.md"
 AGENT_PAYLOADS_DIR="${AGENT_DIR}/.agent_payloads"
+DISABLED_FLAG="${AGENT_DIR}/.scheduler_disabled"
+
+# If scheduler is disabled, exit immediately — don't start the agent
+if [[ -f "$DISABLED_FLAG" ]]; then
+    echo "[$(date)] start_agents.sh: Scheduler DISABLED (.scheduler_disabled exists) — exiting"
+    exit 0
+fi
 
 # Colors for output
 RED='\033[0;31m'

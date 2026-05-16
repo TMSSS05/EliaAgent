@@ -482,10 +482,10 @@ mcp-cli call whatsapp send_file '{"recipient":"<jid>","media_path":"/path/to/fil
 
 | Server Name | Host IP | User | Purpose |
 |-------------|---------|------|---------|
-| `ssh-server-multisaasdeploy` | 157.180.75.87 | vakandi | Main SaaS server (Bene2Luxe, ZovaBoost, Netfluxe, OGBoujee) |
-| `ssh-mpc-server-accforge-io` | 165.227.229.50 | root | AccForge server |
-| `ssh-mcp-elia-tunnel` | 65.21.177.242 | root | Elia tunnel |
-| `ssh-mpc-server-mondialrelay` | 194.87.98.35 | root | MondialRelay server |
+| `ssh-server-multisaasdeploy` | [your-server-ip] | [user] | Main SaaS server |
+| `ssh-mpc-server-accforge-io` | [your-server-ip] | [user] | AccForge server |
+| `ssh-mcp-elia-tunnel` | [your-server-ip] | [user] | Elia tunnel |
+| `ssh-mpc-server-mondialrelay` | [your-server-ip] | [user] | MondialRelay server |
 
 **Usage via mcp-cli:**
 ```bash

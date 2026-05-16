@@ -20,6 +20,12 @@ OPENCODE_BIN="/Users/vakandi/.opencode/bin/opencode"
 LOG_DIR="${AGENT_DIR}/logs"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
+# Check if scheduler is disabled — exit immediately if so
+if [[ -f "${AGENT_DIR}/.scheduler_disabled" ]]; then
+    echo "[$(date)] Morning trigger: Scheduler DISABLED — exiting"
+    exit 0
+fi
+
 # Check OMO and ULW/Ralph toggle states
 # ULW is now the DEFAULT mode. Ralph mode uses .ralph_mode marker file.
 OMO_DISABLED_FILE="${AGENT_DIR}/.omo_disabled"

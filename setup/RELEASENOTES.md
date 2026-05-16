@@ -1,6 +1,117 @@
-# EliaAI Release Notes - May 2026
+# EliaAI Release Notes — May 2026
 
-## Version: v1.2.0 (May 14, 2026)
+---
+
+## 🚀 Version: v2.0.0 — 🧠 AGENT DIFFERENTIATION: PER-AGENT MEMORY (May 16, 2026)
+
+### ✨ The Big News: Each Agent Now Has Its Own Memory
+
+**🧠 What changed**: Every OpenCode agent (Sisyphus, Gilfoyle, Setbon, Picasso, Bene2Luxe, etc.) now sees **only its own memories** in the codemem feed and `mem-recent`/`mem-status` tools. No more cross-contamination between agent contexts.
+
+**🔬 Technical breakdown:**
+
+| Before | After |
+|--------|-------|
+| All agents shared one feed with everyone's memories | Each agent has a **scoped feed** filtered by `project/agentId` |
+| `mem-recent` returned global results | `mem-recent --project <project/agent>` returns agent-specific results |
+| No way to tell which agent created a memory | Every memory item tagged with `actor_id` via observer pipeline |
+| UI feed showed everything mixed together | Feed tab has **agent chips** to filter per-agent views |
+
+### 🏗️ Architecture: How It Works
+
+The differentiation is built on **3 layers** working together:
+
+#### 1️⃣ Plugin Layer (`packages/opencode-plugin/`)
+- The OpenCode plugin resolves `--project` as `baseProject/agentId` (e.g. `EliaAI/elia`)
+- `mem-recent`, `mem-status` now pass this scoped project to `codemem recent --project …`
+- `mem-stats` remains a **global** database summary (intentionally unscoped)
+
+#### 2️⃣ Observer Pipeline (`packages/core/src/`)
+- `observer-client.ts` — Major refactor: now tags every memory with `actor_id` from session metadata
+- `ingest-pipeline.ts` — Smarter session-to-agent mapping
+- `observer-config.ts` — Updated observer config to support per-agent project resolution
+- `raw-event-sweeper.ts` — Ignores events from unrelated agent sessions
+- `schema-bootstrap.ts` — Auto-creates agent-specific tables/indexes on first access
+
+#### 3️⃣ UI Layer (`packages/ui/src/`)
+- **`FeedTabView.tsx`** — Agent chip filter added to memory feed
+- **`filter.ts`** — New project/agent filter logic
+- **`meta.ts`** — Metadata tracking for agent scoping
+- **`state.ts`** — Global state now holds agent context
+- **`feed.ts`** — Feed tab redesigned for scoped views
+
+#### 4️⃣ Viewer Server & MCP Server
+- Viewer API routes support agent-scoped query parameters
+- MCP memory tools (`mcp-codemem`) filter by agent on the server side
+
+### 📦 Files Changed (39 files, +1096 / -124 lines)
+
+```
+packages/opencode-plugin/     → Plugin: agent-aware --project resolution
+packages/core/src/            → Observer: actor_id tagging, scoped sweeps
+packages/ui/src/tabs/feed/    → UI: agent chips, scoped filter, redesigned feed
+packages/ui/src/lib/          → State: agent context support
+packages/cli/src/             → CLI: --project flag in search/stats/recent
+packages/viewer-server/       → API: scoped query parameters
+packages/mcp-server/          → MCP: agent-filtered memory tools
+```
+
+### 🛠️ How to Verify
+
+```bash
+# Agent Gilfoyle's memories only
+codemem recent --project "EliaAI/gilfoyle" --limit 10
+
+# Agent Setbon's memories only
+codemem recent --project "EliaAI/setbon" --limit 10
+
+# Global summary (all agents)
+codemem stats
+
+# SQLite check
+sqlite3 $CODEMEM_DB "SELECT s.project, m.actor_id, COUNT(*) AS n
+FROM memory_items m JOIN sessions s ON s.id=m.session_id
+WHERE m.active=1 GROUP BY 1,2 ORDER BY n DESC LIMIT 20;"
+```
+
+### 🐛 Bug Fixes in This Release
+
+| Fix | File |
+|-----|------|
+| Auto-bootstrap fresh DB on first access | `core/src/schema-bootstrap.ts` |
+| Observer shutdown race condition fix | `core/src/observer-client.ts` |
+| Memory store validation edge case | `core/src/db.ts` |
+| Ingest pipeline null session guard | `core/src/ingest-pipeline.ts` |
+| Raw event sweeper scoping fix | `core/src/raw-event-sweeper.ts` |
+| UI lifecycle double-render fix | `ui/src/tabs/health/lifecycle.ts` |
+| CLI search stats display alignment | `cli/src/commands/search.ts` |
+| MCP server tool arg validation | `mcp-server/` |
+
+### ⚙️ Script Improvements
+
+- `scripts/opencode-serve.sh` — Added `is_already_opencode_server()` to detect existing healthy servers and avoid unnecessary restarts
+- `scripts/manage_cron.sh` — Better launchd plist management, scheduler disable/enable respects agent kill
+- `scripts/start_agents.sh` — Respects `.scheduler_disabled` flag, exits cleanly when scheduler is off
+- `com.elia.elia-agent.plist` — Expanded schedule: now runs every hour from 08:00–21:00
+
+### 🧼 Data Scrubbing for Public Release
+
+- **Memory/MEMORY.md**: All real server IPs replaced with `[your-server-ip]` placeholders
+- **setup/README.md**: All proxy credentials replaced with `[your-proxy-ip:port:user:pass]` placeholders
+- **context/TOOLS.md**: Personal info (phone numbers, real names, IDs) scrubbed for public template
+
+---
+
+### 📋 Changelog Summary
+
+| Version | Date | Changes |
+|---------|------|---------|
+| **v2.0.0** | **May 16, 2026** | **🧠 Agent differentiation — per-agent memory system** |
+| v1.2.0 | May 14, 2026 | Scheduler fix: real enable/disable system |
+| v1.1.0 | May 13, 2026 | codemem integration |
+| v1.0.2 | May 3, 2026 | Proxy system update (HTTP_PROXY) |
+| v1.0.1 | April 27, 2026 | Desktop shortcuts, Discord bot, subworkers |
+| Public | April 2026 | Initial public release |
 
 ### Scheduler Fix: Real Enable/Disable System
 
@@ -490,15 +601,6 @@ launchctl load plists/com.elia.cobou-promoter.plist
 
 ---
 
-## 15. Changelog Summary
+## 15. Quick Start
 
-| Version | Date | Changes |
-|---------|-----|---------|
-| Public | April 2026 | Initial public release |
-| update1763 | - | Added subworkers system |
-| update13265 | - | New triggers (/ulw-loop) |
-| update22984 | - | Pre-report checklist |
-
----
-
-**Quick Start**: See `setup/README.md` for full setup instructions.
+See `setup/README.md` for full setup instructions.

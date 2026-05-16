@@ -1,8 +1,22 @@
 #!/bin/zsh
-# EliaUI - 4 tmux windows startup script
+# =============================================================================
+# DEPRECATED — DO NOT USE
+#
+# This was an AI-generated 4-window version created on May 2, 2026 that BROKE
+# Wael's original 3-pane tmux setup. It introduced start_agents.sh into the
+# UI launcher which caused problems.
+#
+# The correct launcher is EliaUI.command which uses 3 panes:
+#   Pane 0: OpenCode server
+#   Pane 1: Discord bot
+#   Pane 2: UI Electron
+#
+# Kept only for reference. Delete when no one remembers this existed.
+# =============================================================================
+
 # Window 1: OpenCode server (opencode-serve.sh)
 # Window 2: CodeMem Viewer (codemem-viewer.sh)
-# Window 3: Agents (start_agents.sh)
+# Window 3: Agents (start_agents.sh)  ← WRONG, should not be here
 # Window 4: UI (elia-ui.sh)
 
 set -euo pipefail
